@@ -1,10 +1,20 @@
 # About
 
-## Credits 🙌
-This is a fork of the [nfe_utils](https://github.com/edsonbernar/nfe_utils) project, originally created by [Edson Bernardino](https://github.com/edsonbernar).
+## Project
 
-## Feedback and Support 📬
-For questions or support, feel free to open an issue or join the discussions in the repository.
+Fiscal Renderer is a native Go rewrite for generating Brazilian auxiliary
+fiscal documents as PDFs from XML documents. The repository keeps the original
+Python source, fixtures, and generated PDFs as reference material while the Go
+library and CLI maintain parity.
 
-## Maintainer 🛠️
-[![Engenere](https://storage.googleapis.com/eng-imagens/logo-fundo-preto.webp)](https://engenere.one/)
+## Credits
+
+The upstream project is a fork of the
+[nfe_utils](https://github.com/edsonbernar/nfe_utils) project, originally
+created by [Edson Bernardino](https://github.com/edsonbernar).
+
+## Feedback and Support
+
+For questions or support, open an issue in the
+[awafinance/fiscal-renderer](https://github.com/awafinance/fiscal-renderer)
+repository.

@@ -1,147 +1,95 @@
-DACTE (Documento Auxiliar do Conhecimento de Transporte Eletrônico) é um documento impresso usado no Brasil para acompanhar o conhecimento de transporte eletrônico (CT-e). Ele serve como uma versão simplificada do CT-e, fornecendo os principais detalhes sobre o embarque, como informações da carga, remetente e destinatário, e dados da transportadora.
+# DACTE
+
+DACTE é o documento auxiliar do Conhecimento de Transporte Eletrônico (CT-e).
+Use o pacote `dacte` para renderizar XML de CT-e em PDF.
 
 ## Uso Básico
 
-=== "Python"
+```go
+package main
 
-    ```python
-    from brazilfiscalreport.dacte import Dacte
+import (
+	"os"
 
-    # Caminho para o arquivo XML
-    xml_file_path = 'cte.xml'
-
-    # Carregar conteúdo do XML
-    with open(xml_file_path, "r", encoding="utf8") as file:
-        xml_content = file.read()
-
-    # Instanciar o objeto DACTE com o conteúdo XML carregado
-    dacte = Dacte(xml=xml_content)
-    dacte.output('output_dacte.pdf')
-    ```
-
-=== "CLI"
-
-    ```bash
-    bfrep dacte /path/to/cte.xml
-    ```
-
-## Personalizando o DACTE 🎨
-
-Esta seção descreve como personalizar a saída PDF do DACTE usando a classe `DacteConfig`. Você pode ajustar diversas configurações como margens, fontes e outras opções de acordo com suas necessidades.
-
-### Opções de Configuração ⚙️
-
-Aqui está uma descrição de todas as opções de configuração disponíveis em `DacteConfig`:
-
----
-
-**Logo**
-
-- **Tipo**: `str`, `BytesIO` ou `bytes`
-- **Descrição**: Caminho para o arquivo de logo ou dados binários da imagem a ser incluída no PDF. Você pode usar uma string com o caminho do arquivo ou passar os dados da imagem diretamente.
-- **Exemplo**:
-    ```python
-    config.logo = "path/to/logo.jpg"  # Usando caminho do arquivo
-    ```
-- **Padrão**: Sem logo.
-
----
-
-**Margens**
-
-- **Tipo**: `Margins`
-- **Campos**: `top`, `right`, `bottom`, `left` (todos do tipo `Number`)
-- **Descrição**: Define as margens da página do documento PDF.
-- **Exemplo**:
-    ```python
-    config.margins = Margins(top=5, right=5, bottom=5, left=5)
-    ```
-- **Padrão**: top, right, bottom e left definidos como 5 mm.
-
----
-
-**Posição do Recibo**
-
-- **Tipo**: `ReceiptPosition` (Enum)
-- **Valores**: `TOP`, `BOTTOM`, `LEFT`
-- **Descrição**: Posição da seção de recibo no DACTE.
-- **Exemplo**:
-    ```python
-    config.receipt_pos = ReceiptPosition.BOTTOM
-    ```
-- **Padrão**: `TOP`
-
----
-
-**Configuração Decimal**
-
-- **Tipo**: `DecimalConfig`
-- **Campos**: `price_precision`, `quantity_precision` (ambos `int`)
-- **Descrição**: Define o número de casas decimais para preços e quantidades.
-- **Exemplo**:
-    ```python
-    config.decimal_config = DecimalConfig(price_precision=2, quantity_precision=2)
-    ```
-- **Padrão**: `4` para ambos os campos.
-
----
-
-**Tipo de Fonte**
-
-- **Tipo**: `FontType` (Enum)
-- **Valores**: `COURIER`, `TIMES`
-- **Descrição**: Estilo de fonte usado em todo o documento PDF.
-- **Exemplo**:
-    ```python
-    config.font_type = FontType.COURIER
-    ```
-- **Padrão**: `TIMES`
-
----
-
-**Marca d'água Cancelada**
-
-- **Tipo**: `bool`
-- **Descrição**: Quando definido como `True`, exibe uma marca d'água "CANCELADA" no DACTE para documentos cancelados.
-- **Exemplo**:
-    ```python
-    config.watermark_cancelled = True
-    ```
-- **Padrão**: `False`
-
----
-
-### Exemplo de Uso com Personalização
-
-Veja como configurar um objeto DacteConfig com um conjunto completo de personalizações:
-
-```python
-from brazilfiscalreport.dacte import (
-    Dacte,
-    DacteConfig,
-    DecimalConfig,
-    FontType,
-    Margins,
-    ReceiptPosition,
+	"github.com/awafinance/fiscal-renderer/dacte"
 )
 
-# Caminho para o arquivo XML
-xml_file_path = 'cte.xml'
+func main() {
+	xmlContent, err := os.ReadFile("cte.xml")
+	if err != nil {
+		panic(err)
+	}
 
-# Carregar conteúdo do XML
-with open(xml_file_path, "r", encoding="utf8") as file:
-    xml_content = file.read()
-
-# Criar uma instância de configuração
-config = DacteConfig(
-    logo='path/to/logo.png',
-    margins=Margins(top=10, right=10, bottom=10, left=10),
-    receipt_pos=ReceiptPosition.BOTTOM,
-    decimal_config=DecimalConfig(price_precision=2, quantity_precision=2),
-    font_type=FontType.TIMES,
-)
-
-# Usar esta configuração ao criar uma instância do Dacte
-dacte = Dacte(xml_content, config=config)
-dacte.output('output_dacte.pdf')
+	doc, err := dacte.New(string(xmlContent), nil)
+	if err != nil {
+		panic(err)
+	}
+	if err := doc.Output("dacte.pdf"); err != nil {
+		panic(err)
+	}
+}
 ```
+
+Use `Output(path)` para gravar diretamente em um arquivo, ou `Write(w)` para
+enviar o PDF a qualquer `io.Writer`.
+
+## Configuração
+
+`dacte.New` aceita um `*dacte.Config` opcional. Campos vazios são normalizados
+para os padrões do projeto upstream.
+
+| Campo | Tipo | Padrão | Descrição |
+|-------|------|--------|-----------|
+| `Logo` | `string` | vazio | Caminho opcional para o logo. |
+| `LogoBytes` | `[]byte` | vazio | Bytes opcionais do logo em memória. Tem precedência sobre `Logo`. |
+| `Margins` | `dacte.Margins` | `5, 5, 5, 5` | Margens da página em milímetros. |
+| `ReceiptPosition` | `dacte.ReceiptPosition` | `dacte.ReceiptPositionTop` | Posição do recibo. |
+| `DecimalConfig` | `dacte.DecimalConfig` | `4, 4` | Precisão de preço e quantidade. |
+| `FontType` | `dacte.FontType` | `dacte.FontTypeTimes` | Fonte principal do PDF. |
+| `WatermarkCancelled` | `bool` | `false` | Renderiza a marca d'água de cancelamento. |
+| `DisplayIBSCBS` | `bool` | `false` | Renderiza campos IBS/CBS quando presentes. |
+
+## Constantes
+
+```go
+dacte.FontTypeCourier
+dacte.FontTypeTimes
+
+dacte.ReceiptPositionTop
+dacte.ReceiptPositionBottom
+dacte.ReceiptPositionLeft
+
+dacte.ModalTypeRodoviario
+dacte.ModalTypeAereo
+dacte.ModalTypeAquaviario
+dacte.ModalTypeFerroviario
+dacte.ModalTypeDutoviario
+dacte.ModalTypeMultimodal
+```
+
+## Configuração Personalizada
+
+```go
+cfg := dacte.Config{
+	Logo:            "logo.png",
+	Margins:         dacte.Margins{Top: 10, Right: 10, Bottom: 10, Left: 10},
+	ReceiptPosition: dacte.ReceiptPositionTop,
+	DecimalConfig:   dacte.DecimalConfig{PricePrecision: 2, QuantityPrecision: 3},
+	FontType:        dacte.FontTypeCourier,
+	DisplayIBSCBS:   true,
+}
+
+doc, err := dacte.New(string(xmlContent), &cfg)
+if err != nil {
+	panic(err)
+}
+err = doc.Output("dacte.pdf")
+```
+
+## CLI
+
+```bash
+bfrep dacte /path/to/cte.xml
+```
+
+O CLI aplica `LOGO` e as margens configuradas no `config.yaml`.

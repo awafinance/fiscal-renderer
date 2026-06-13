@@ -1,7 +1,7 @@
-site_name: BrazilFiscalReport
-site_url: https://engenere.github.io/BrazilFiscalReport/
-repo_url: https://github.com/Engenere/BrazilFiscalReport
-repo_name: Engenere/BrazilFiscalReport
+site_name: Fiscal Renderer
+site_url: https://awafinance.github.io/fiscal-renderer/
+repo_url: https://github.com/awafinance/fiscal-renderer
+repo_name: awafinance/fiscal-renderer
 
 theme:
   name: material

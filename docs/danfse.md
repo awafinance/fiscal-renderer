@@ -1,58 +1,77 @@
-DANFSE (Auxiliary Document of the Electronic Service Invoice) is a printed document used in Brazil to accompany the electronic service invoice (NFS-e). It serves as a simplified version of the NFS-e, providing key details about the service provided, such as issuer and taker information, tax details, and total amounts.
+# DANFSE
+
+DANFSE is the auxiliary document for an Electronic Service Invoice (NFS-e).
+Use the `danfse` package to render NFS-e XML into PDF.
 
 ## Basic Usage
 
-=== "Python"
+```go
+package main
 
-    ```python
-    from brazilfiscalreport.danfse import Danfse
+import (
+	"os"
 
-    # Path to the XML file
-    xml_file_path = 'nfse.xml'
-
-    # Load XML Content
-    with open(xml_file_path, "r", encoding="utf8") as file:
-        xml_content = file.read()
-
-    # Instantiate the DANFSE object with the loaded XML content
-    danfse = Danfse(xml=xml_content)
-    danfse.output('output_danfse.pdf')
-    ```
-
-=== "CLI"
-
-    ```bash
-    bfrep danfse /path/to/nfse.xml
-    ```
-
-## Customizing DANFSE
-
-This section describes how to customize the PDF output of the DANFSE using the `DanfseConfig` class. You can adjust various settings such as margins and fonts according to your needs.
-
-### Margins
-
-You can customize the margins of the PDF output by providing a `Margins` object.
-
-```python
-from brazilfiscalreport.danfse import Danfse, DanfseConfig, Margins
-
-config = DanfseConfig(
-    margins=Margins(top=5, right=5, bottom=5, left=5)
+	"github.com/awafinance/fiscal-renderer/danfse"
 )
 
-danfse = Danfse(xml=xml_content, config=config)
-danfse.output('output_danfse.pdf')
+func main() {
+	xmlContent, err := os.ReadFile("nfse.xml")
+	if err != nil {
+		panic(err)
+	}
+
+	doc, err := danfse.New(string(xmlContent), nil)
+	if err != nil {
+		panic(err)
+	}
+	if err := doc.Output("danfse.pdf"); err != nil {
+		panic(err)
+	}
+}
 ```
 
-### Cancelled Watermark
+Use `Output(path)` to write directly to a file, or `Write(w)` to stream the PDF
+to any `io.Writer`.
 
-To display a "CANCELADA" watermark on cancelled documents:
+## Configuration
 
-```python
-from brazilfiscalreport.danfse import Danfse, DanfseConfig
+`danfse.New` accepts an optional `*danfse.Config`.
 
-config = DanfseConfig(watermark_cancelled=True)
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `Margins` | `danfse.Margins` | `5, 5, 5, 5` | Page margins in millimeters. |
+| `DecimalConfig` | `danfse.DecimalConfig` | `4, 4` | Price and quantity precision. |
+| `FontType` | `danfse.FontType` | `danfse.FontTypeTimes` | Core PDF font. |
+| `WatermarkCancelled` | `bool` | `false` | Render the cancelled watermark. |
 
-danfse = Danfse(xml=xml_content, config=config)
-danfse.output('output_danfse.pdf')
+## Constants
+
+```go
+danfse.FontTypeCourier
+danfse.FontTypeTimes
 ```
+
+## Custom Configuration
+
+```go
+cfg := danfse.Config{
+	Margins:            danfse.Margins{Top: 2, Right: 2, Bottom: 2, Left: 2},
+	DecimalConfig:      danfse.DecimalConfig{PricePrecision: 2, QuantityPrecision: 2},
+	FontType:           danfse.FontTypeTimes,
+	WatermarkCancelled: true,
+}
+
+doc, err := danfse.New(string(xmlContent), &cfg)
+if err != nil {
+	panic(err)
+}
+err = doc.Output("danfse.pdf")
+```
+
+## CLI
+
+```bash
+bfrep danfse /path/to/nfse.xml
+```
+
+The CLI applies margin values from `config.yaml`.

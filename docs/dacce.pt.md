@@ -1,105 +1,88 @@
-DACCe (Documento Auxiliar da Carta de Correção Eletrônica) é uma representação impressa da CC-e (Carta de Correção Eletrônica) usada no Brasil. Fornece detalhes sobre correções feitas em uma NF-e (Nota Fiscal Eletrônica) emitida anteriormente, incluindo o texto de correção, a chave da nota referenciada e informações do protocolo.
+# DACCe
+
+DACCe é o documento auxiliar da Carta de Correção Eletrônica (CC-e).
+Use o pacote `dacce` para renderizar um XML de CC-e em PDF.
 
 ## Uso Básico
 
-=== "Python"
+```go
+package main
 
-    ```python
-    from brazilfiscalreport.dacce import DaCCe
+import (
+	"os"
 
-    # Caminho para o arquivo XML
-    xml_file_path = 'cce.xml'
+	"github.com/awafinance/fiscal-renderer/dacce"
+)
 
-    # Carregar conteúdo do XML
-    with open(xml_file_path, "r", encoding="utf8") as file:
-        xml_content = file.read()
+func main() {
+	xmlContent, err := os.ReadFile("cce.xml")
+	if err != nil {
+		panic(err)
+	}
 
-    # Instanciar o objeto PDF da CC-e com o conteúdo XML carregado
-    cce = DaCCe(xml=xml_content)
+	doc, err := dacce.New(string(xmlContent), nil)
+	if err != nil {
+		panic(err)
+	}
+	if err := doc.Output("dacce.pdf"); err != nil {
+		panic(err)
+	}
+}
+```
 
-    # Salvar o PDF gerado em um arquivo
-    cce.output('cce.pdf')
-    ```
+Use `Output(path)` para gravar diretamente em um arquivo, ou `Write(w)` para
+enviar o PDF a qualquer `io.Writer`.
 
-=== "CLI"
+## Configuração
 
-    ```bash
-    bfrep dacce /path/to/cce.xml
-    ```
+`dacce.New` aceita um `*dacce.Config` opcional.
 
-## Personalizando o DACCe 🎨
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `Issuer` | `dacce.Issuer` | Dados do emitente impressos no cabeçalho. Se vazio, `dacce.DefaultIssuer()` é usado. |
+| `Image` | `string` | Caminho opcional para o logo. |
+| `ImageBytes` | `[]byte` | Bytes opcionais do logo em memória. Tem precedência sobre `Image`. |
 
-A classe `DaCCe` aceita os seguintes parâmetros:
+`dacce.Issuer` contém:
 
-### Parâmetros
+| Campo | Descrição |
+|-------|-----------|
+| `Name` | Nome do emitente |
+| `Address` | Logradouro e número |
+| `Neighborhood` | Bairro |
+| `CEP` | CEP |
+| `City` | Cidade |
+| `UF` | Estado |
+| `Phone` | Telefone |
 
----
+## Emitente e Logo Personalizados
 
-**xml**
-
-- **Tipo**: `str`
-- **Descrição**: O conteúdo XML do evento CC-e.
-- **Obrigatório**: Sim.
-
----
-
-**emitente**
-
-- **Tipo**: `dict` ou `None`
-- **Descrição**: Um dicionário contendo as informações do emitente. Quando fornecido, os dados do emitente são exibidos no cabeçalho do DACCe.
-- **Chaves**: `nome`, `end`, `bairro`, `cidade`, `uf`, `fone`
-- **Exemplo**:
-    ```python
-    emitente = {
-        "nome": "EMPRESA LTDA",
-        "end": "AV. TEST, 100",
-        "bairro": "CENTRO",
-        "cidade": "SÃO PAULO",
-        "uf": "SP",
-        "fone": "(11) 1234-5678",
-    }
-    ```
-- **Padrão**: `None` (nenhuma informação do emitente exibida).
-
----
-
-**image**
-
-- **Tipo**: `str`, `BytesIO`, `bytes` ou `None`
-- **Descrição**: Caminho para um arquivo de imagem do logo ou dados binários da imagem a ser exibida no cabeçalho junto com as informações do emitente.
-- **Exemplo**:
-    ```python
-    image = "path/to/logo.jpg"
-    ```
-- **Padrão**: `None` (sem logo).
-
----
-
-### Exemplo de Uso com Personalização
-
-```python
-from brazilfiscalreport.dacce import DaCCe
-
-# Caminho para o arquivo XML
-xml_file_path = 'cce.xml'
-
-# Carregar conteúdo do XML
-with open(xml_file_path, "r", encoding="utf8") as file:
-    xml_content = file.read()
-
-# Informações do emitente
-emitente = {
-    "nome": "EMPRESA LTDA",
-    "end": "AV. TEST, 100",
-    "bairro": "CENTRO",
-    "cidade": "SÃO PAULO",
-    "uf": "SP",
-    "fone": "(11) 1234-5678",
+```go
+cfg := dacce.Config{
+	Issuer: dacce.Issuer{
+		Name:         "EMPRESA LTDA",
+		Address:      "AV. TEST, 100",
+		Neighborhood: "CENTRO",
+		CEP:          "01010-000",
+		City:         "SAO PAULO",
+		UF:           "SP",
+		Phone:        "(11) 1234-5678",
+	},
+	Image: "logo.png",
 }
 
-# Instanciar com emitente e logo
-cce = DaCCe(xml=xml_content, emitente=emitente, image="path/to/logo.png")
-
-# Salvar o PDF gerado em um arquivo
-cce.output('cce.pdf')
+doc, err := dacce.New(string(xmlContent), &cfg)
+if err != nil {
+	panic(err)
+}
+err = doc.Output("dacce.pdf")
 ```
+
+## CLI
+
+```bash
+bfrep dacce /path/to/cce.xml
+```
+
+O CLI lê `ISSUER` do `config.yaml`. Se a seção não existir, o emitente padrão
+do DACCe é usado.

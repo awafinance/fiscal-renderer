@@ -1,76 +1,84 @@
 # Contribuindo
 
-Contribuições são bem-vindas! Veja como configurar o projeto para desenvolvimento.
+Contribuições são bem-vindas. Este repositório é uma reescrita nativa em Go que
+mantém o código Python upstream, fixtures e PDFs gerados como referências de
+paridade.
 
 ## Configuração do Ambiente de Desenvolvimento
 
 1. Clone o repositório:
 
     ```bash
-    git clone https://github.com/Engenere/BrazilFiscalReport.git
-    cd BrazilFiscalReport
+    git clone https://github.com/awafinance/fiscal-renderer.git
+    cd fiscal-renderer
     ```
 
-2. Crie um ambiente virtual e instale as dependências:
+2. Baixe as dependências Go:
 
     ```bash
-    python -m venv .venv
-    source .venv/bin/activate  # Linux/macOS
-    pip install -e '.[dacte,damdfe,cli]'
-    pip install pytest pytest-cov ruff
+    go mod download
     ```
 
-3. Instale os hooks do pre-commit:
+3. Instale as ferramentas Poppler se quiser executar as verificações locais mais fortes de paridade de PDF:
 
     ```bash
-    pip install pre-commit
-    pre-commit install
+    # macOS
+    brew install poppler
+
+    # Ubuntu/Debian
+    sudo apt-get install poppler-utils
+    ```
+
+4. Compile o CLI:
+
+    ```bash
+    go build ./cmd/bfrep
     ```
 
 ## Executando Testes
 
-O projeto usa `pytest` para testes. Você também precisará do `qpdf` instalado para testes de comparação de PDF:
+Execute a suíte completa de testes Go:
 
 ```bash
-# Instalar qpdf (Ubuntu/Debian)
-sudo apt-get install qpdf
-
-# Executar todos os testes
-pytest
-
-# Executar com cobertura
-pytest --cov=./brazilfiscalreport --cov-branch
-
-# Executar testes para um tipo específico de documento
-pytest tests/test_danfe.py
+go test ./...
 ```
+
+Execute os testes de um renderer específico:
+
+```bash
+go test ./danfe
+go test ./dacte
+go test ./damdfe
+go test ./dacce
+go test ./danfse
+```
+
+Os testes de paridade validam que os PDFs gerados são válidos, têm a mesma
+quantidade de páginas e a mesma geometria dos PDFs dourados upstream, além de
+cobrir todos os arquivos em `tests/generated`. Quando `pdfinfo` e `pdftoppm`
+estão disponíveis, os testes dos renderers também rasterizam todas as páginas e
+comparam o resultado com o PDF dourado usando limites visuais específicos para
+cada renderer.
 
 ## Estilo de Código
 
-O projeto usa [Ruff](https://github.com/astral-sh/ruff) para linting e formatação. Os hooks do pre-commit verificarão automaticamente seu código antes de cada commit.
+Formate o código Go antes de enviar:
 
 ```bash
-# Verificação manual
-ruff check .
-ruff format .
+gofmt -w $(rg --files -g '*.go')
 ```
 
-## Regenerando PDFs de Referência
+## Material de Referência
 
-Ao fazer alterações na saída PDF, você pode regenerar os PDFs de referência usados nos testes:
-
-```bash
-BFR_GENERATE_EXPECTED=1 pytest tests/test_danfe.py
-```
-
-!!! warning
-    Só regenere PDFs de referência quando você intencionalmente alterou a saída PDF. Sempre revise a diferença visual antes de fazer o commit.
+Não remova a implementação Python upstream, `tests/fixtures` ou
+`tests/generated` enquanto o trabalho de paridade estiver em andamento. Eles são
+a referência autoritativa para comportamento, padrões de configuração e
+cobertura dos documentos.
 
 ## Enviando Alterações
 
-1. Faça um fork do repositório
-2. Crie uma branch para sua feature (`git checkout -b minha-feature`)
-3. Faça commit das suas alterações
-4. Faça push para seu fork e abra um Pull Request
-
-Certifique-se de que todos os testes passam e os hooks do pre-commit estão limpos antes de enviar.
+1. Faça um fork do repositório.
+2. Crie uma branch para sua alteração.
+3. Mantenha as mudanças focadas em um renderer, helper compartilhado ou área de documentação quando possível.
+4. Execute `go test ./...` e `go build ./cmd/bfrep`.
+5. Faça push da branch e abra um Pull Request.

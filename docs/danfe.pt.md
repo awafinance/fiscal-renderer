@@ -1,242 +1,144 @@
-DANFE (Documento Auxiliar da Nota Fiscal Eletrônica) é uma representação impressa da NF-e (Nota Fiscal Eletrônica) usada no Brasil. Contém os principais detalhes da transação, como vendedor, comprador, produtos e impostos.
+# DANFE
+
+DANFE é o documento auxiliar da Nota Fiscal Eletrônica (NF-e). Use o pacote
+`danfe` para renderizar XML de NF-e em PDF.
 
 ## Uso Básico
 
-=== "Python"
+```go
+package main
 
-    ```python
-    from brazilfiscalreport.danfe import Danfe
+import (
+	"os"
 
-    # Caminho para o arquivo XML
-    xml_file_path = 'nfe.xml'
-
-    # Carregar conteúdo do XML
-    with open(xml_file_path, "r", encoding="utf8") as file:
-        xml_content = file.read()
-
-    # Instanciar o objeto DANFE com o conteúdo XML carregado
-    danfe = Danfe(xml=xml_content)
-    danfe.output('output_danfe.pdf')
-    ```
-
-=== "CLI"
-
-    ```bash
-    bfrep danfe /path/to/nfe.xml
-    ```
-
-## Personalizando o DANFE 🎨
-
-Esta seção descreve como personalizar a saída PDF do DANFE usando a classe `DanfeConfig`. Você pode ajustar diversas configurações como margens, fontes e configurações de impostos de acordo com suas necessidades.
-
-### Opções de Configuração ⚙️
-
-Aqui está uma descrição de todas as opções de configuração disponíveis em `DanfeConfig`:
-
----
-
-**Logo**
-
-- **Tipo**: `str`, `BytesIO` ou `bytes`
-- **Descrição**: Caminho para o arquivo de logo ou dados binários da imagem a ser incluída no PDF. Você pode usar uma string com o caminho do arquivo ou passar os dados da imagem diretamente.
-- **Exemplo**:
-    ```python
-    config.logo = "path/to/logo.jpg"  # Usando caminho do arquivo
-    ```
-- **Padrão**: Sem logo.
-
----
-
-**Margens**
-
-- **Tipo**: `Margins`
-- **Campos**: `top`, `right`, `bottom`, `left` (todos do tipo `Number`)
-- **Descrição**: Define as margens da página do documento PDF.
-- **Exemplo**:
-    ```python
-    config.margins = Margins(top=5, right=5, bottom=5, left=5)
-    ```
-- **Padrão**: top, right, bottom e left definidos como 5 mm.
-
----
-
-**Tipo de Fonte**
-
-- **Tipo**: `FontType` (Enum)
-- **Valores**: `COURIER`, `TIMES`
-- **Descrição**: Estilo de fonte usado em todo o documento PDF.
-- **Exemplo**:
-    ```python
-    config.font_type = FontType.COURIER
-    ```
-- **Padrão**: `TIMES`
-
----
-**Tamanho da Fonte**
-
-- **Tipo**: `FontSize` (Enum)
-- **Valores**: `BIG`, `SMALL`
-- **Descrição**: Tamanho da fonte usado em todo o documento PDF.
-- **Exemplo**:
-    ```python
-    config.font_size = FontSize.BIG
-    ```
-- **Padrão**: `SMALL`
-
----
-
-**Posição do Recibo**
-
-- **Tipo**: `ReceiptPosition` (Enum)
-- **Valores**: `TOP`, `BOTTOM`, `LEFT`
-- **Descrição**: Posição da seção de recibo no DANFE.
-- **Exemplo**:
-    ```python
-    config.receipt_pos = ReceiptPosition.BOTTOM
-    ```
-- **Padrão**: `TOP` quando retrato, `LEFT` quando orientação paisagem.
-
-!!! note
-    Na orientação paisagem, a posição do recibo é no lado esquerdo; personalização não é permitida.
-
----
-
-**Configuração Decimal**
-
-- **Tipo**: `DecimalConfig`
-- **Campos**: `price_precision`, `quantity_precision` (ambos `int`)
-- **Descrição**: Define o número de casas decimais para preços e quantidades.
-- **Exemplo**:
-    ```python
-    config.decimal_config = DecimalConfig(price_precision=2, quantity_precision=2)
-    ```
-- **Padrão**: `4`
-
----
-
-**Configuração de Impostos**
-
-- **Tipo**: `TaxConfiguration` (Enum)
-- **Valores**: `STANDARD_ICMS_IPI`, `ICMS_ST`, `WITHOUT_IPI`
-- **Descrição**: Especifica quais campos de impostos exibir.
-- **Exemplo**:
-    ```python
-    config.tax_configuration = TaxConfiguration.WITHOUT_IPI
-    ```
-- **Padrão**: `STANDARD_ICMS_IPI`
-
-!!! warning
-    Este recurso ainda não foi implementado.
-
----
-
-**Exibição da Fatura**
-
-- **Tipo**: `InvoiceDisplay` (Enum)
-- **Valores**: `DUPLICATES_ONLY`, `FULL_DETAILS`
-- **Descrição**: Controla o nível de detalhe na seção de fatura do DANFE.
-- **Exemplo**:
-    ```python
-    config.invoice_display = InvoiceDisplay.FULL_DETAILS
-    ```
-- **Padrão**: `FULL_DETAILS`
-
----
-
-**Exibir PIS COFINS**
-
-- **Tipo**: `Bool`
-- **Valores**: `True`, `False`
-- **Descrição**: Define se os impostos PIS e COFINS devem ser exibidos nos totais do DANFE.
-- **Exemplo**:
-    ```python
-    config.display_pis_cofins = True
-    ```
-- **Padrão**: `False`
-
----
-
-**Configuração da Descrição do Produto**
-
-- **Tipo**: `ProductDescriptionConfig`
-- **Campos**: `display_branch` (`bool`), `display_anp` (`bool`), `display_anvisa` (`bool`), `branch_info_prefix` (`str`), `display_additional_info` (`bool`)
-- **Descrição**: Controla quais informações adicionais são exibidas na coluna de descrição do produto do DANFE.
-- **Exemplo**:
-    ```python
-    config.product_description_config = ProductDescriptionConfig(
-        display_branch=True,
-        branch_info_prefix="=>",
-        display_additional_info=True,
-        display_anp=True,
-        display_anvisa=True,
-    )
-    ```
-- **Padrão**:
-    ```python
-    ProductDescriptionConfig(
-        display_branch=False,
-        display_anp=False,
-        display_anvisa=False,
-        branch_info_prefix="",
-        display_additional_info=True,
-    )
-    ```
-
----
-
-**Marca d'água Cancelada**
-
-- **Tipo**: `bool`
-- **Descrição**: Quando definido como `True`, exibe uma marca d'água "CANCELADA" no DANFE para notas fiscais canceladas. Para arquivos XML sem a tag `protNFe`, uma marca d'água "SEM VALOR FISCAL" é exibida independentemente desta configuração.
-- **Exemplo**:
-    ```python
-    config.watermark_cancelled = True
-    ```
-- **Padrão**: `False`
-
----
-
-### Exemplo de Uso com Personalização
-
-Veja como configurar um objeto ``DanfeConfig`` com um conjunto completo de personalizações::
-
-```python
-from brazilfiscalreport.danfe import (
-    Danfe,
-    DanfeConfig,
-    DecimalConfig,
-    FontType,
-    InvoiceDisplay,
-    Margins,
-    ProductDescriptionConfig,
-    ReceiptPosition,
-    TaxConfiguration,
+	"github.com/awafinance/fiscal-renderer/danfe"
 )
 
-# Caminho para o arquivo XML
-xml_file_path = 'nfe.xml'
+func main() {
+	xmlContent, err := os.ReadFile("nfe.xml")
+	if err != nil {
+		panic(err)
+	}
 
-# Carregar conteúdo do XML
-with open(xml_file_path, "r", encoding="utf8") as file:
-    xml_content = file.read()
-
-# Criar uma instância de configuração
-config = DanfeConfig(
-    logo='path/to/logo.png',
-    margins=Margins(top=10, right=10, bottom=10, left=10),
-    receipt_pos=ReceiptPosition.BOTTOM,
-    decimal_config=DecimalConfig(price_precision=2, quantity_precision=2),
-    tax_configuration=TaxConfiguration.ICMS_ST,
-    invoice_display=InvoiceDisplay.FULL_DETAILS,
-    font_type=FontType.TIMES,
-    display_pis_cofins=True,
-    product_description_config=ProductDescriptionConfig(
-        display_branch=True,
-        display_additional_info=True,
-    ),
-)
-
-# Usar esta configuração ao criar uma instância do Danfe
-danfe = Danfe(xml_content, config=config)
-danfe.output('output_danfe.pdf')
+	doc, err := danfe.New(string(xmlContent), nil)
+	if err != nil {
+		panic(err)
+	}
+	if err := doc.Output("danfe.pdf"); err != nil {
+		panic(err)
+	}
+}
 ```
+
+Use `Output(path)` para gravar diretamente em um arquivo, ou `Write(w)` para
+enviar o PDF a qualquer `io.Writer`.
+
+## Configuração
+
+`danfe.New` aceita um `*danfe.Config` opcional. Campos vazios são normalizados
+para os padrões do projeto upstream.
+
+| Campo | Tipo | Padrão | Descrição |
+|-------|------|--------|-----------|
+| `Logo` | `string` | vazio | Caminho opcional para o logo. |
+| `LogoBytes` | `[]byte` | vazio | Bytes opcionais do logo em memória. Tem precedência sobre `Logo`. |
+| `Margins` | `danfe.Margins` | `5, 5, 5, 5` | Margens da página em milímetros. |
+| `ReceiptPosition` | `danfe.ReceiptPosition` | `danfe.ReceiptPositionTop` | Posição do recibo. |
+| `DecimalConfig` | `danfe.DecimalConfig` | `4, 4` | Precisão de preço e quantidade. |
+| `TaxConfiguration` | `danfe.TaxConfiguration` | `danfe.TaxConfigurationStandardICMSIPI` | Modo da tabela de impostos dos produtos. |
+| `InvoiceDisplay` | `danfe.InvoiceDisplay` | `danfe.InvoiceDisplayFullDetails` | Modo de exibição de fatura/duplicatas. |
+| `FontType` | `danfe.FontType` | `danfe.FontTypeTimes` | Fonte principal do PDF. |
+| `FontSize` | `danfe.FontSize` | `danfe.FontSizeSmall` | Multiplicador do tamanho da fonte. |
+| `DisplayPISCOFINS` | `bool` | `false` | Inclui colunas e totais de PIS/COFINS. |
+| `WatermarkCancelled` | `bool` | `false` | Renderiza a marca d'água de cancelamento. |
+| `InfCplSemicolonNewline` | `bool` | `false` | Quebra informações adicionais em ponto e vírgula. |
+| `ProductDescriptionConfig` | `danfe.ProductDescriptionConfig` | informações adicionais habilitadas | Controla detalhes extras na descrição dos produtos. |
+| `FooterStamp` | `danfe.FooterStamp` | altura `5`, largura máx. `20`, espaçamento `1` | Rodapé opcional com logo e texto. |
+
+## Constantes
+
+```go
+danfe.TaxConfigurationStandardICMSIPI
+danfe.TaxConfigurationICMSST
+danfe.TaxConfigurationWithoutIPI
+
+danfe.InvoiceDisplayDuplicatesOnly
+danfe.InvoiceDisplayFullDetails
+
+danfe.FontTypeCourier
+danfe.FontTypeTimes
+
+danfe.FontSizeSmall
+danfe.FontSizeBig
+
+danfe.ReceiptPositionTop
+danfe.ReceiptPositionBottom
+danfe.ReceiptPositionLeft
+```
+
+## Opções da Descrição dos Produtos
+
+`danfe.ProductDescriptionConfig` controla textos extras anexados à descrição de
+cada produto.
+
+| Campo | Descrição |
+|-------|-----------|
+| `DisplayBranch` | Inclui informações de lote/rastro. |
+| `DisplayANP` | Inclui informações de combustível ANP. |
+| `DisplayANVISA` | Inclui informações de medicamento ANVISA. |
+| `BranchInfoPrefix` | Prefixo usado antes de linhas de lote/rastro. |
+| `DisplayAdditionalInfo` | Inclui o texto de `infAdProd`. Habilitado por padrão. |
+
+## Rodapé
+
+`danfe.FooterStamp` pode renderizar um pequeno rodapé em todas as páginas.
+
+| Campo | Descrição |
+|-------|-----------|
+| `Logo` | Caminho opcional para o logo do rodapé. |
+| `LogoBytes` | Bytes opcionais do logo do rodapé em memória. Tem precedência sobre `Logo`. |
+| `Text` | Texto opcional do rodapé. |
+| `Height` | Altura do rodapé em milímetros. |
+| `LogoMaxWidth` | Largura máxima do logo. |
+| `Spacing` | Espaço entre o conteúdo e o rodapé. |
+
+## Configuração Personalizada
+
+```go
+cfg := danfe.Config{
+	Logo:            "logo.png",
+	Margins:         danfe.Margins{Top: 2, Right: 2, Bottom: 2, Left: 2},
+	ReceiptPosition: danfe.ReceiptPositionBottom,
+	DecimalConfig:   danfe.DecimalConfig{PricePrecision: 3, QuantityPrecision: 2},
+	TaxConfiguration: danfe.TaxConfigurationICMSST,
+	InvoiceDisplay:  danfe.InvoiceDisplayFullDetails,
+	FontType:        danfe.FontTypeTimes,
+	FontSize:        danfe.FontSizeBig,
+	DisplayPISCOFINS: true,
+	ProductDescriptionConfig: danfe.ProductDescriptionConfig{
+		DisplayBranch:         true,
+		DisplayANP:            true,
+		DisplayANVISA:         true,
+		BranchInfoPrefix:      "=>",
+		DisplayAdditionalInfo: false,
+	},
+	FooterStamp: danfe.FooterStamp{
+		Logo: "logo.png",
+		Text: "Powered by Fiscal Renderer",
+	},
+}
+
+doc, err := danfe.New(string(xmlContent), &cfg)
+if err != nil {
+	panic(err)
+}
+err = doc.Output("danfe.pdf")
+```
+
+## CLI
+
+```bash
+bfrep danfe /path/to/nfe.xml
+```
+
+O CLI aplica `LOGO` e as margens configuradas no `config.yaml`.

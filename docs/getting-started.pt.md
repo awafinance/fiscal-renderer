@@ -2,97 +2,107 @@
 
 ## Instalação
 
-### Instalação básica
+### Biblioteca
+
+Adicione o módulo Go nativo ao seu projeto:
 
 ```bash
-pip install brazilfiscalreport
+go get github.com/awafinance/fiscal-renderer
 ```
 
-Isso instala a biblioteca principal com suporte para **DANFE** e **DACCe**.
+### CLI
 
-### Dependências opcionais
+Instale o comando `bfrep` com:
 
-Alguns tipos de documentos requerem pacotes adicionais:
-
-=== "DACTE"
-
-    ```bash
-    pip install 'brazilfiscalreport[dacte]'
-    ```
-
-=== "DAMDFE"
-
-    ```bash
-    pip install 'brazilfiscalreport[damdfe]'
-    ```
-
-=== "CLI"
-
-    ```bash
-    pip install 'brazilfiscalreport[cli]'
-    ```
-
-=== "Todos os extras"
-
-    ```bash
-    pip install 'brazilfiscalreport[dacte,damdfe,cli]'
-    ```
+```bash
+go install github.com/awafinance/fiscal-renderer/cmd/bfrep@latest
+```
 
 ## Início Rápido
 
-### Usando código Python
+### Usando código Go
 
 Gere um DANFE em PDF a partir de um arquivo XML de NF-e em poucas linhas:
 
-```python
-from brazilfiscalreport.danfe import Danfe
+```go
+package main
 
-# Carregar o conteúdo do XML
-with open("nfe.xml", "r", encoding="utf8") as file:
-    xml_content = file.read()
+import (
+	"os"
 
-# Gerar o PDF
-danfe = Danfe(xml=xml_content)
-danfe.output("danfe.pdf")
+	"github.com/awafinance/fiscal-renderer/danfe"
+)
+
+func main() {
+	xmlContent, err := os.ReadFile("nfe.xml")
+	if err != nil {
+		panic(err)
+	}
+
+	doc, err := danfe.New(string(xmlContent), nil)
+	if err != nil {
+		panic(err)
+	}
+	if err := doc.Output("danfe.pdf"); err != nil {
+		panic(err)
+	}
+}
 ```
 
 O mesmo padrão se aplica a todos os tipos de documentos:
 
 === "DANFE"
 
-    ```python
-    from brazilfiscalreport.danfe import Danfe
-
-    danfe = Danfe(xml=xml_content)
-    danfe.output("danfe.pdf")
+    ```go
+    doc, err := danfe.New(string(xmlContent), nil)
+    if err != nil {
+    	panic(err)
+    }
+    err = doc.Output("danfe.pdf")
     ```
 
 === "DACCe"
 
-    ```python
-    from brazilfiscalreport.dacce import DaCCe
-
-    dacce = DaCCe(xml=xml_content)
-    dacce.output("dacce.pdf")
+    ```go
+    doc, err := dacce.New(string(xmlContent), nil)
+    if err != nil {
+    	panic(err)
+    }
+    err = doc.Output("dacce.pdf")
     ```
 
 === "DACTE"
 
-    ```python
-    from brazilfiscalreport.dacte import Dacte
-
-    dacte = Dacte(xml=xml_content)
-    dacte.output("dacte.pdf")
+    ```go
+    doc, err := dacte.New(string(xmlContent), nil)
+    if err != nil {
+    	panic(err)
+    }
+    err = doc.Output("dacte.pdf")
     ```
 
 === "DAMDFE"
 
-    ```python
-    from brazilfiscalreport.damdfe import Damdfe
-
-    damdfe = Damdfe(xml=xml_content)
-    damdfe.output("damdfe.pdf")
+    ```go
+    doc, err := damdfe.New(string(xmlContent), nil)
+    if err != nil {
+    	panic(err)
+    }
+    err = doc.Output("damdfe.pdf")
     ```
+
+=== "DANFSE"
+
+    ```go
+    doc, err := danfse.New(string(xmlContent), nil)
+    if err != nil {
+    	panic(err)
+    }
+    err = doc.Output("danfse.pdf")
+    ```
+
+`Output(path)` grava o PDF em um caminho no sistema de arquivos. Use `Write(w)`
+quando já tiver um `io.Writer`, como uma resposta HTTP ou um `bytes.Buffer`.
 
 ### Usando o CLI
 
@@ -103,11 +113,12 @@ bfrep danfe /path/to/nfe.xml
 bfrep dacce /path/to/cce.xml
 bfrep dacte /path/to/cte.xml
 bfrep damdfe /path/to/mdfe.xml
+bfrep danfse /path/to/nfse.xml
 ```
 
 Veja a [documentação do CLI](cli.md) para opções de configuração.
 
 ## Próximos passos
 
-- Conheça as opções de personalização para cada tipo de documento: [DANFE](danfe.md), [DACTE](dacte.md), [DAMDFE](damdfe.md), [DACCe](dacce.md)
+- Conheça as opções de personalização para cada tipo de documento: [DANFE](danfe.md), [DACTE](dacte.md), [DAMDFE](damdfe.md), [DACCe](dacce.md), [DANFSE](danfse.md)
 - Configure o [CLI](cli.md) para geração em lote

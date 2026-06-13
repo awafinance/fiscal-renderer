@@ -1,20 +1,15 @@
-[![tests](https://github.com/engenere/BrazilFiscalReport/workflows/tests/badge.svg)](https://github.com/Engenere/BrazilFiscalReport/actions)
-[![codecov](https://codecov.io/gh/engenere/BrazilFiscalReport/branch/main/graph/badge.svg)](https://app.codecov.io/gh/Engenere/BrazilFiscalReport)
-[![python](https://img.shields.io/github/languages/top/Engenere/brazilfiscalreport)](https://pypi.org/project/BrazilFiscalReport/)
-[![pypi](https://img.shields.io/pypi/v/brazilfiscalreport.svg)](https://pypi.org/project/BrazilFiscalReport/)
-[![license](https://img.shields.io/github/license/Engenere/BrazilFiscalReport)](https://github.com/Engenere/BrazilFiscalReport/blob/main/LICENSE)
-[![contributors](https://img.shields.io/github/contributors/Engenere/BrazilFiscalReport)](https://github.com/Engenere/BrazilFiscalReport/graphs/contributors)
-[![pypi-downloads](https://static.pepy.tech/badge/brazilfiscalreport)](https://pepy.tech/projects/brazilfiscalreport)
+[![tests](https://github.com/awafinance/fiscal-renderer/workflows/tests/badge.svg)](https://github.com/awafinance/fiscal-renderer/actions)
+[![license](https://img.shields.io/github/license/awafinance/fiscal-renderer)](https://github.com/awafinance/fiscal-renderer/blob/main/LICENSE)
+[![contributors](https://img.shields.io/github/contributors/awafinance/fiscal-renderer)](https://github.com/awafinance/fiscal-renderer/graphs/contributors)
 
-# Brazil Fiscal Report
+# Fiscal Renderer
 
-![Brazil Fiscal Report - XML to PDF](docs/assets/banner.svg)
+Native Go library and CLI for generating Brazilian auxiliary fiscal documents
+as PDFs from fiscal XML documents.
 
-Python library for generating Brazilian auxiliary fiscal documents in PDF from XML documents.
-
-> Biblioteca Python para gerar **DANFE**, **DACTE**, **DAMDFE**, **DACCe** e **DANFSE** em PDF a partir de XML de NF-e, CT-e, MDF-e, CC-e e NFS-e.
-
-**[Documentation](https://engenere.github.io/BrazilFiscalReport/)** | **[PyPI](https://pypi.org/project/BrazilFiscalReport/)** | **[Try it Online](https://brazilfiscalreport.streamlit.app)**
+> Biblioteca e CLI nativos em Go para gerar **DANFE**, **DACTE**,
+> **DAMDFE**, **DACCe** e **DANFSE** em PDF a partir de XML de NF-e, CT-e,
+> MDF-e, CC-e e NFS-e.
 
 ## Supported Documents
 
@@ -29,47 +24,42 @@ Python library for generating Brazilian auxiliary fiscal documents in PDF from X
 ## Installation
 
 ```bash
-pip install brazilfiscalreport
-```
-
-This installs the core library with support for **DANFE** and **DACCe**. For additional document types and features:
-
-```bash
-pip install 'brazilfiscalreport[dacte]'   # DACTE support (requires qrcode)
-pip install 'brazilfiscalreport[damdfe]'  # DAMDFE support (requires qrcode)
-pip install 'brazilfiscalreport[danfse]'  # DANFSE support (requires qrcode)
-pip install 'brazilfiscalreport[cli]'     # CLI tool
-pip install 'brazilfiscalreport[dacte,damdfe,danfse,cli]'  # All extras
+go get github.com/awafinance/fiscal-renderer
+go install github.com/awafinance/fiscal-renderer/cmd/bfrep@latest
 ```
 
 ## Quick Start
 
-```python
-from brazilfiscalreport.danfe import Danfe
+```go
+package main
 
-with open("nfe.xml", "r", encoding="utf8") as file:
-    xml_content = file.read()
+import (
+	"os"
 
-danfe = Danfe(xml=xml_content)
-danfe.output("danfe.pdf")
+	"github.com/awafinance/fiscal-renderer/danfe"
+)
+
+func main() {
+	xmlContent, err := os.ReadFile("nfe.xml")
+	if err != nil {
+		panic(err)
+	}
+
+	doc, err := danfe.New(string(xmlContent), nil)
+	if err != nil {
+		panic(err)
+	}
+	if err := doc.Output("danfe.pdf"); err != nil {
+		panic(err)
+	}
+}
 ```
 
-The same pattern applies to all document types:
+The same constructor/output pattern is available in the `danfe`, `dacce`,
+`dacte`, `damdfe`, and `danfse` packages.
 
-```python
-from brazilfiscalreport.dacte import Dacte
-from brazilfiscalreport.damdfe import Damdfe
-from brazilfiscalreport.dacce import DaCCe
-
-dacte = Dacte(xml=cte_xml)
-dacte.output("dacte.pdf")
-
-damdfe = Damdfe(xml=mdfe_xml)
-damdfe.output("damdfe.pdf")
-
-dacce = DaCCe(xml=cce_xml)
-dacce.output("dacce.pdf")
-```
+Use `doc.Output(path)` to write directly to a file, or `doc.Write(w)` to stream
+the PDF to any `io.Writer`, such as an HTTP response or in-memory buffer.
 
 ## CLI
 
@@ -83,19 +73,21 @@ bfrep dacce /path/to/cce.xml
 bfrep danfse /path/to/nfse.xml
 ```
 
-See the [CLI documentation](https://engenere.github.io/BrazilFiscalReport/cli/) for configuration options.
+The CLI reads `config.yaml` from the current directory, writes the output PDF to
+the current directory, supports `--version` and `-v`, and preserves the upstream
+logo, margin, and DACCe issuer configuration behavior.
 
 ## Dependencies
 
-- [FPDF2](https://github.com/py-pdf/fpdf2) - PDF creation library for Python
-- [phonenumbers](https://github.com/daviddrysdale/python-phonenumbers) - Phone number formatting
-- [python-barcode](https://github.com/WhyNotHugo/python-barcode) - Barcode generation
-- [qrcode](https://github.com/lincolnloop/python-qrcode) - QR code generation (required for DACTE, DAMDFE and DANFSE)
+- [go-pdf/fpdf](https://github.com/go-pdf/fpdf) for PDF rendering
+- [boombuler/barcode](https://github.com/boombuler/barcode) for Code128 barcodes
+- [skip2/go-qrcode](https://github.com/skip2/go-qrcode) for QR codes
+- [yaml.v3](https://gopkg.in/yaml.v3) for CLI configuration
 
-## Credits
+## Upstream Reference
 
-This is a fork of the [nfe_utils](https://github.com/edsonbernar/nfe_utils) project, originally created by [Edson Bernardino](https://github.com/edsonbernar).
-
-## Maintainer
-
-[![Engenere](https://storage.googleapis.com/eng-imagens/logo-fundo-preto.webp)](https://engenere.one/)
+This is a fork/port to Go of the
+[BrazilFiscalReport](https://github.com/Engenere/BrazilFiscalReport?tab=readme-ov-file)
+project, which was a fork of the
+[nfe_utils](https://github.com/edsonbernar/nfe_utils) project from Edson
+Bernardino.

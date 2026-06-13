@@ -1,13 +1,14 @@
-Generate DANFE, DACCe, DACTE, and DAMDFE documents directly from the terminal.
-The PDF will be saved in the current directory, and you can create
-a `config.yaml` file with issuer details and other configurations.
+Generate DANFE, DACCe, DACTE, DAMDFE, and DANFSE documents directly from the terminal.
+The PDF is saved in the current directory using the XML filename with a `.pdf`
+extension. You can create a `config.yaml` file with issuer details, logo, and
+margin configuration.
 
 ## Installation
 
-The CLI requires additional dependencies. Install them with:
+Install the native Go CLI with:
 
 ```bash
-pip install 'brazilfiscalreport[cli]'
+go install github.com/awafinance/fiscal-renderer/cmd/bfrep@latest
 ```
 
 ## Version
@@ -16,6 +17,7 @@ Use the `--version` or `-v` option to check the installed version:
 
 ```bash
 bfrep --version
+bfrep -v
 ```
 
 ## Commands
@@ -44,11 +46,17 @@ bfrep dacte /path/to/cte.xml
 bfrep damdfe /path/to/mdfe.xml
 ```
 
-## Configuration File ⚙️
+### DANFSE
 
-Create a `config.yaml` file in the directory where you run the command. This file allows you to configure issuer details, logo, and margins.
+```bash
+bfrep danfse /path/to/nfse.xml
+```
 
-#### Example of `config.yaml`
+## Configuration File
+
+Create a `config.yaml` file in the directory where you run the command.
+
+#### Example `config.yaml`
 
 ```yaml
 ISSUER:
@@ -67,4 +75,6 @@ BOTTOM_MARGIN: 5.0
 LEFT_MARGIN: 5.0
 ```
 
-**Note**: The `ISSUER` section is used only by the `dacce` command. The `LOGO` and margin settings apply to `danfe`, `dacte`, and `damdfe` commands. If no `config.yaml` is found, default values are used.
+`ISSUER` is used only by the `dacce` command. `LOGO` is used by `danfe`,
+`dacte`, and `damdfe`. The margin settings apply to `danfe`, `dacte`,
+`damdfe`, and `danfse`. If no `config.yaml` is found, default values are used.
