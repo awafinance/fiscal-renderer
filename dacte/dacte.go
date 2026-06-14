@@ -19,13 +19,15 @@ import (
 type Document struct {
 	XML    string
 	Config Config
+	root   *xmlutil.Node
 }
 
 func New(xml string, config *Config) (*Document, error) {
-	if _, err := xmlutil.ParseString(xml); err != nil {
+	root, err := xmlutil.ParseString(xml)
+	if err != nil {
 		return nil, err
 	}
-	return &Document{XML: xml, Config: normalizeConfig(config)}, nil
+	return &Document{XML: xml, Config: normalizeConfig(config), root: root}, nil
 }
 
 func (d *Document) Output(path string) error {
@@ -38,9 +40,13 @@ func (d *Document) Output(path string) error {
 }
 
 func (d *Document) Write(w io.Writer) error {
-	root, err := xmlutil.ParseString(d.XML)
-	if err != nil {
-		return err
+	root := d.root
+	if root == nil {
+		parsed, err := xmlutil.ParseString(d.XML)
+		if err != nil {
+			return err
+		}
+		root = parsed
 	}
 	data := parseData(root, d.Config)
 	pdf := pdfdraw.NewPDF("P", "mm", "A4", "")

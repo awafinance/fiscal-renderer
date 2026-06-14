@@ -51,10 +51,12 @@ func DefaultConfig() Config {
 type Document struct {
 	XML    string
 	Config Config
+	root   *xmlutil.Node
 }
 
 func New(xml string, config *Config) (*Document, error) {
-	if _, err := xmlutil.ParseString(xml); err != nil {
+	root, err := xmlutil.ParseString(xml)
+	if err != nil {
 		return nil, err
 	}
 	normalized := DefaultConfig()
@@ -64,7 +66,7 @@ func New(xml string, config *Config) (*Document, error) {
 			normalized.Issuer = DefaultIssuer()
 		}
 	}
-	return &Document{XML: xml, Config: normalized}, nil
+	return &Document{XML: xml, Config: normalized, root: root}, nil
 }
 
 func (d *Document) Output(path string) error {
@@ -77,9 +79,13 @@ func (d *Document) Output(path string) error {
 }
 
 func (d *Document) Write(w io.Writer) error {
-	root, err := xmlutil.ParseString(d.XML)
-	if err != nil {
-		return err
+	root := d.root
+	if root == nil {
+		parsed, err := xmlutil.ParseString(d.XML)
+		if err != nil {
+			return err
+		}
+		root = parsed
 	}
 	pdf := pdfdraw.NewPDF("P", "mm", "A4", "")
 	pdf.SetCompression(false)
