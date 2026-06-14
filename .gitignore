@@ -118,3 +118,7 @@ dacte_test_1.pdf
 mdf-e_test_1.pdf
 nfe_test_1.pdf
 xml_cce_1.pdf
+
+# Local research lab
+.lab/
+run.log
