@@ -624,7 +624,7 @@ func drawComplementaryInfo(pdf *pdfdraw.PDF, x, y, w float64, value string, conf
 	pdf.CellFormat(w-2, 3, "INFORMAÇÕES COMPLEMENTARES", "", 1, "L", false, 0, "")
 	pdf.SetFont(string(config.FontType), "", 7)
 	pdf.SetXY(x+1, y+5)
-	pdf.CellFormat(w-2, 3, longField(optional(value), w-2, 7, string(config.FontType)), "", 1, "L", false, 0, "")
+	pdf.CellFormat(w-2, 3, longFieldPDF(pdf, optional(value), w-2), "", 1, "L", false, 0, "")
 }
 
 func drawBox(pdf *pdfdraw.PDF, x, y, w, h float64, title string, fields []field, config Config) {
@@ -652,8 +652,32 @@ func drawBox(pdf *pdfdraw.PDF, x, y, w, h float64, title string, fields []field,
 		pdf.SetFont(string(config.FontType), "B", 6)
 		pdf.CellFormat(colW-2, 2.5, field.Label, "", 2, "L", false, 0, "")
 		pdf.SetFont(string(config.FontType), "", 7)
-		pdf.CellFormat(colW-2, 3, longField(field.Value, colW-2, 7, string(config.FontType)), "", 0, "L", false, 0, "")
+		pdf.CellFormat(colW-2, 3, longFieldPDF(pdf, field.Value, colW-2), "", 0, "L", false, 0, "")
 	}
+}
+
+func longFieldPDF(pdf *pdfdraw.PDF, text string, limitMM float64) string {
+	if strings.TrimSpace(text) == "" || limitMM <= 0 {
+		return ""
+	}
+	if pdf.GetStringWidth(pdf.Encode(text)) <= limitMM {
+		return text
+	}
+	words := strings.Fields(text)
+	for len(words) > 0 && pdf.GetStringWidth(pdf.Encode(strings.Join(words, " ")+"...")) > limitMM {
+		words = words[:len(words)-1]
+	}
+	if len(words) > 0 {
+		return strings.Join(words, " ") + "..."
+	}
+	runes := []rune(text)
+	for len(runes) > 0 && pdf.GetStringWidth(pdf.Encode(string(runes)+"...")) > limitMM {
+		runes = runes[:len(runes)-1]
+	}
+	if len(runes) == 0 {
+		return ""
+	}
+	return string(runes) + "..."
 }
 
 func optional(value string) string {
