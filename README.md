@@ -4,8 +4,9 @@
 
 # Fiscal Renderer
 
-Native Go library and CLI for generating Brazilian auxiliary fiscal documents
-as PDFs from fiscal XML documents.
+Native Go library and blazing-fast CLI for generating Brazilian auxiliary
+fiscal documents as PDFs from fiscal XML documents, optimized for high-volume
+rendering workloads.
 
 > Biblioteca e CLI nativos em Go para gerar **DANFE**, **DACTE**,
 > **DAMDFE**, **DACCe** e **DANFSE** em PDF a partir de XML de NF-e, CT-e,
@@ -76,6 +77,33 @@ bfrep danfse /path/to/nfse.xml
 The CLI reads `config.yaml` from the current directory, writes the output PDF to
 the current directory, supports `--version` and `-v`, and preserves the upstream
 logo, margin, and DACCe issuer configuration behavior.
+
+## Performance
+
+This Go port is designed for low-latency rendering and fast command-line
+startup. Benchmarks on Apple M5 Pro with Go 1.26.1 and Python 3.14 showed:
+
+API median, with XML already in memory and rendering to bytes:
+
+| Case | Python | Go | Speedup |
+|------|--------|----|---------|
+| Production NF-e DANFE | 53.5 ms | 2.8 ms | 18.9x |
+| NF-e one-page | 43.5 ms | 2.7 ms | 16.2x |
+| NF-e multipage | 253.0 ms | 7.4 ms | 34.3x |
+| CT-e DACTE | 29.4 ms | 4.2 ms | 7.0x |
+| MDF-e DAMDFE | 31.9 ms | 4.6 ms | 7.0x |
+| NFS-e DANFSE | 29.9 ms | 24.3 ms | 1.2x |
+
+CLI median, including subprocess startup, XML file read, and PDF file write:
+
+| Case | Python CLI | Go CLI | Speedup |
+|------|------------|--------|---------|
+| Production NF-e DANFE | 280.1 ms | 6.7 ms | 41.8x |
+| NF-e one-page | 270.4 ms | 6.5 ms | 41.6x |
+| NF-e multipage | 471.3 ms | 11.6 ms | 40.6x |
+| CT-e DACTE | 262.8 ms | 7.9 ms | 33.1x |
+| MDF-e DAMDFE | 276.0 ms | 8.6 ms | 32.1x |
+| NFS-e DANFSE | 272.8 ms | 30.5 ms | 8.9x |
 
 ## Dependencies
 
