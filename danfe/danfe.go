@@ -72,6 +72,7 @@ func RenderFile(xml string, path string, config *Config) error {
 
 type nfeData struct {
 	Key                   string
+	BarcodePNG            []byte
 	Model                 string
 	Series                string
 	Number                string
@@ -184,9 +185,11 @@ func parseData(root *xmlutil.Node, config Config) nfeData {
 	fisco := normalizeSpaces(xmlutil.Text(infAdic, "infAdFisco"))
 	crt := xmlutil.Text(emit, "CRT")
 	products := parseProducts(root.FindAll("det"), crt, config)
+	barcodePNG, _ := barcode.Code128PNG(key, 450, 60)
 
 	data := nfeData{
 		Key:                   key,
+		BarcodePNG:            barcodePNG,
 		Model:                 xmlutil.Text(ide, "mod"),
 		Series:                xmlutil.Text(ide, "serie"),
 		Number:                xmlutil.Text(ide, "nNF"),
@@ -705,7 +708,7 @@ func drawHeader(pdf *pdfdraw.PDF, x, y, w float64, data nfeData, config Config, 
 	pdf.SetXY(x+emitW+1, y+invoiceY)
 	pdf.MultiCell(idW-2, 3, data.NFTypeCode+"\nNº "+formatInvoiceNumber(data.Number)+"\nSÉRIE "+data.Series+"\nFOLHA "+danfePageLabel(pdf, data), "", "C", false)
 	pdf.Rect(x+emitW+idW, y, codeW, h, "")
-	drawBarcode(pdf, x+emitW+idW+4, y+barcodeY, codeW-8, data.Key)
+	drawBarcode(pdf, x+emitW+idW+4, y+barcodeY, codeW-8, data.Key, data.BarcodePNG)
 	pdf.SetFont(string(config.FontType), "B", fontSize(config, 6.2))
 	pdf.SetXY(x+emitW+idW+2, y+keyY)
 	pdf.MultiCell(codeW-4, 3, "CHAVE DE ACESSO\n"+strings.Join(fiscalfmt.Chunks(data.Key, 4), " "), "", "C", false)
@@ -974,12 +977,8 @@ func drawBox(pdf *pdfdraw.PDF, x, y, w, h float64, title string, fields []field,
 	}
 }
 
-func drawBarcode(pdf *pdfdraw.PDF, x, y, w float64, key string) {
-	if key == "" {
-		return
-	}
-	pngBytes, err := barcode.Code128PNG(key, 450, 60)
-	if err != nil {
+func drawBarcode(pdf *pdfdraw.PDF, x, y, w float64, key string, pngBytes []byte) {
+	if key == "" || len(pngBytes) == 0 {
 		return
 	}
 	name := "danfe-code128-" + key
