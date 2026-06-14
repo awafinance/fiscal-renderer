@@ -972,7 +972,7 @@ func drawBarcode(pdf *pdfdraw.PDF, x, y, w float64, key string) {
 	if key == "" {
 		return
 	}
-	pngBytes, err := barcode.Code128PNG(key, 900, 120)
+	pngBytes, err := barcode.Code128PNG(key, 450, 60)
 	if err != nil {
 		return
 	}
