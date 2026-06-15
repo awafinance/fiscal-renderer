@@ -436,17 +436,17 @@ func draw(pdf *pdfdraw.PDF, data cteData, config Config) {
 	h := 297 - config.Margins.Top - config.Margins.Bottom
 	pdf.Rect(x, y, w, h, "")
 	drawReceipt(pdf, x, y, w, data, config)
-	y += 24
+	y += 22
 	drawHeader(pdf, x, y, w, data, config)
-	y += 73
-	drawParties(pdf, x+2, y, w-4, data, config)
-	y += 51
-	drawTomadorCargo(pdf, x+2, y, w-4, data, config)
-	y += 36
-	drawValuesTaxes(pdf, x+2, y, w-4, data, config)
+	y += 68
+	drawParties(pdf, x, y, w, data, config)
+	y += 41
+	drawTomadorCargo(pdf, x, y, w, data, config)
+	y += 22
+	drawValuesTaxes(pdf, x, y, w, data, config)
 	y += 39
-	y += drawDocumentsObservations(pdf, x+2, y, w-4, data, config)
-	drawModalSpecific(pdf, x+2, y, w-4, data, config)
+	y += drawDocumentsObservations(pdf, x, y, w, data, config)
+	drawModalSpecific(pdf, x, y, w, data, config)
 }
 
 func drawContinuation(pdf *pdfdraw.PDF, data cteData, config Config) {
@@ -457,9 +457,9 @@ func drawContinuation(pdf *pdfdraw.PDF, data cteData, config Config) {
 	h := 297 - config.Margins.Top - config.Margins.Bottom
 	pdf.Rect(x, y, w, h, "")
 	drawReceipt(pdf, x, y, w, data, config)
-	y += 24
+	y += 22
 	drawHeader(pdf, x, y, w, data, config)
-	y += 73
+	y += 68
 	_, remainingObservationText := splitObservationText(observationText(data.Observations))
 	remainingDocs := limitDocuments(data.LinkedDocuments, firstPageDocumentLimit, len(data.LinkedDocuments))
 	if len(remainingDocs) > 0 {
@@ -468,13 +468,13 @@ func drawContinuation(pdf *pdfdraw.PDF, data cteData, config Config) {
 			rowsPerColumn = 1
 		}
 		docHeight := 8.0 + float64(rowsPerColumn)*4
-		y += drawOriginDocuments(pdf, x+2, y, w-4, remainingDocs, rowsPerColumn, 4, docHeight, config)
+		y += drawOriginDocuments(pdf, x, y, w, remainingDocs, rowsPerColumn, 4, docHeight, config)
 	}
 	if remainingObservationText != "" {
 		if len(remainingDocs) > 0 {
 			y += 3
 		}
-		drawObservations(pdf, x+2, y, w-4, remainingObservationText, config)
+		drawObservations(pdf, x, y, w, remainingObservationText, config)
 	}
 }
 
@@ -508,39 +508,63 @@ func drawWatermark(pdf *pdfdraw.PDF, data cteData, config Config) {
 }
 
 func drawReceipt(pdf *pdfdraw.PDF, x, y, w float64, data cteData, config Config) {
-	pdf.Rect(x, y, w, 20, "")
+	pdf.SetDashPattern([]float64{0.2, 0.8}, 0)
+	pdf.Line(x, y+21, x+w, y+21)
+	pdf.SetDashPattern([]float64{}, 0)
+	pdf.Rect(x, y, w-0.5, 3, "")
 	pdf.SetFont(string(config.FontType), "", 7)
-	pdf.SetXY(x+1, y+1)
-	pdf.MultiCell(w-2, 3, "DECLARO QUE RECEBI OS VOLUMES DESTE CONHECIMENTO EM PERFEITO ESTADO PELO QUE DOU POR CUMPRIDO O PRESENTE CONTRATO DE TRANSPORTE", "", "L", false)
-	pdf.Line(x, y+11, x+w, y+11)
-	pdf.Line(x+w/4, y+11, x+w/4, y+20)
-	pdf.Line(x+w/2, y+11, x+w/2, y+20)
-	pdf.Line(x+3*w/4, y+11, x+3*w/4, y+20)
+	pdf.SetXY(x, y)
+	pdf.CellFormat(w-2*x, 3, "DECLARO QUE RECEBI OS VOLUMES DESTE CONHECIMENTO EM PERFEITO ESTADO PELO QUE DOU POR CUMPRIDO O PRESENTE CONTRATO DE TRANSPORTE", "", 0, "L", false, 0, "")
+
+	receiptY := y + 3.5
+	receiptH := 17.0
+	pdf.Rect(x, receiptY, w-0.5, receiptH, "")
 
 	colW := w / 4
-	labelY := y + 13
-	valueY := y + 17
+	for i := 1; i < 4; i++ {
+		xLine := x + float64(i)*colW
+		pdf.Line(xLine, receiptY, xLine, receiptY+receiptH)
+	}
+
+	yStart := y + 10
+	pdf.Line(x, yStart+2, x+colW, yStart+2)
 	pdf.SetFont(string(config.FontType), "B", 7)
-	pdf.Text(x+2, labelY, "NOME")
+	pdf.SetXY(x+2, yStart)
+	pdf.CellFormat(40, -5, "NOME", "", 0, "L", false, 0, "")
+	pdf.SetXY(x+2, yStart+8)
+	pdf.CellFormat(40, -5, "RG", "", 0, "L", false, 0, "")
+	pdf.SetXY(x+colW+7.5, yStart+11)
+	pdf.CellFormat(40, -5, "ASSINATURA / CARIMBO", "", 0, "L", false, 0, "")
+	pdf.SetXY(x+2*colW+10, yStart)
+	pdf.CellFormat(40, -5, "CHEGADA DATA/HORA", "", 0, "L", false, 0, "")
+	pdf.SetXY(x+2*colW+10, yStart+8)
+	pdf.CellFormat(40, -5, "SAÍDA DATA/HORA", "", 0, "L", false, 0, "")
+
 	pdf.SetFont(string(config.FontType), "B", 10)
-	pdf.Text(x+3*colW+23, y+12, "CT-E")
-	pdf.SetFont(string(config.FontType), "B", 7)
-	pdf.Text(x+2*colW+8, labelY, "CHEGADA DATA/HORA")
-	pdf.Text(x+2, valueY, "RG")
+	pdf.SetXY(x+3*colW+23, yStart-2)
+	pdf.CellFormat(40, -5, "CT-E", "", 0, "L", false, 0, "")
 	pdf.SetFont(string(config.FontType), "", 7)
-	pdf.Text(x+3*colW+5, labelY, "NRO. DOCUMENTO")
+	pdf.SetXY(x+3*colW+5, yStart+2)
+	pdf.CellFormat(40, -5, "NRO. DOCUMENTO", "", 0, "L", false, 0, "")
+	pdf.SetXY(x+3*colW+5, yStart+8)
+	pdf.CellFormat(40, -5, "SÉRIE", "", 0, "L", false, 0, "")
 	pdf.SetFont(string(config.FontType), "B", 7)
-	pdf.Text(x+2*colW+8, valueY, "SAÍDA DATA/HORA")
-	pdf.Text(x+3*colW+35, labelY, data.Number)
-	pdf.SetFont(string(config.FontType), "", 7)
-	pdf.Text(x+3*colW+5, valueY, "SÉRIE")
-	pdf.SetFont(string(config.FontType), "B", 7)
-	pdf.Text(x+3*colW+38, valueY, data.Series)
-	pdf.Text(x+colW+8, valueY, "ASSINATURA / CARIMBO")
+	pdf.SetXY(x+3*colW+35, yStart+2)
+	pdf.CellFormat(40, -5, data.Number, "", 0, "L", false, 0, "")
+	pdf.SetXY(x+3*colW+38, yStart+8)
+	pdf.CellFormat(40, -5, data.Series, "", 0, "L", false, 0, "")
 }
 
 func drawHeader(pdf *pdfdraw.PDF, x, y, w float64, data cteData, config Config) {
 	const headerHeight = 70.0
+	leftW := w/2 - 33
+	if leftW < 60 {
+		leftW = w * 0.34
+	}
+	midX := x + leftW
+	titleW := 53.0
+	modalW := 31.0
+	midW := titleW + modalW
 	pdf.Rect(x, y, w, headerHeight, "")
 	if len(config.LogoBytes) > 0 {
 		pdf.ImageBytes("dacte-logo", config.LogoBytes, x+2, y+2, 22, 0)
@@ -548,9 +572,10 @@ func drawHeader(pdf *pdfdraw.PDF, x, y, w float64, data cteData, config Config) 
 		imageType, _ := images.TypeFromFile(config.Logo)
 		pdf.ImageOptions(config.Logo, x+2, y+2, 22, 0, false, fpdf.ImageOptions{ImageType: imageType}, 0, "")
 	}
+	pdf.Rect(x, y, leftW, 27, "")
 	pdf.SetFont(string(config.FontType), "", 7)
-	pdf.SetXY(x+26, y+3)
-	pdf.MultiCell(65, 3, strings.Join(nonEmpty(
+	pdf.SetXY(x+2, y+2)
+	pdf.MultiCell(leftW-4, 3, strings.Join(nonEmpty(
 		data.Emitter.Name,
 		"CNPJ: "+data.Emitter.Doc+" IE: "+data.Emitter.IE,
 		strings.Join(nonEmpty(data.Emitter.Street, data.Emitter.Number), ", "),
@@ -558,39 +583,45 @@ func drawHeader(pdf *pdfdraw.PDF, x, y, w float64, data cteData, config Config) 
 		strings.TrimSpace(data.Emitter.City+" - "+data.Emitter.UF),
 		data.Emitter.CEP,
 		"Fone: "+data.Emitter.Phone,
-	), "\n"), "", "L", false)
-	pdf.Line(x+w/2, y, x+w/2, y+headerHeight)
+	), "\n"), "", "C", false)
+	pdf.Rect(midX, y, titleW, 11, "")
 	pdf.SetFont(string(config.FontType), "B", 10)
-	pdf.SetXY(x, y+24)
-	pdf.MultiCell(w/2, 4, "DACTE\nDOCUMENTO AUXILIAR DO CONHECIMENTO DE TRANSPORTE ELETRÔNICO", "", "C", false)
-	drawDenseBox(pdf, x+1, y+37, w/2-2, 31, []field{
-		{"MODELO", data.Model},
-		{"SÉRIE", data.Series},
-		{"NÚMERO", data.Number},
-		{"DATA E HORA DE EMISSÃO", strings.TrimSpace(data.EmissionDate + " " + data.EmissionTime)},
-		{"FL", pageLabel(pdf, data)},
-		{"MODAL", data.ModalName},
-		{"TIPO DO CT-E", data.CTeType},
-		{"TIPO DO SERVIÇO", data.ServiceType},
-		{"TOMADOR DO SERVIÇO", data.TomadorType},
-		{"CFOP - NATUREZA DA PRESTAÇÃO", strings.TrimSpace(data.CFOP + " - " + data.Nature)},
-	}, config)
-	drawQR(pdf, x+w-32, y+2, data.QRCode)
-	drawBarcode(pdf, x+w/2+8, y+15, data.Key)
+	pdf.SetXY(midX, y+1)
+	pdf.MultiCell(titleW, 4, "DACTE", "", "C", false)
+	pdf.SetFont(string(config.FontType), "", 6)
+	pdf.SetXY(midX, y+5)
+	pdf.MultiCell(titleW, 2, "DOCUMENTO AUXILIAR DO CONHECIMENTO\nDE TRANSPORTE ELETRÔNICO", "", "C", false)
+	drawHeaderCell(pdf, midX+titleW, y, modalW, 11, "MODAL", data.ModalName, "C", 7, 8, config)
+
+	metaY := y + 11
+	pdf.Rect(midX, metaY, midW, 11, "")
+	modelW, seriesW, numberW, dateW := 16.0, 12.0, 18.0, 28.0
+	flW := midW - modelW - seriesW - numberW - dateW
+	cellX := midX
+	drawHeaderCell(pdf, cellX, metaY, modelW, 11, "MODELO", data.Model, "C", 7, 7, config)
+	cellX += modelW
+	drawHeaderCell(pdf, cellX, metaY, seriesW, 11, "SÉRIE", data.Series, "C", 7, 7, config)
+	cellX += seriesW
+	drawHeaderCell(pdf, cellX, metaY, numberW, 11, "NÚMERO", data.Number, "C", 7, 7, config)
+	cellX += numberW
+	drawHeaderCell(pdf, cellX, metaY, dateW, 11, "DATA E HORA DE EMISSÃO", strings.TrimSpace(data.EmissionDate+" "+data.EmissionTime), "C", 6, 6, config)
+	cellX += dateW
+	drawHeaderCell(pdf, cellX, metaY, flW, 11, "FL", pageLabel(pdf, data), "C", 7, 7, config)
+
+	drawBarcode(pdf, midX+1, y+26.5, data.Key)
+	drawHeaderCell(pdf, midX, y+32, midW, 10, "CHAVE DE ACESSO", data.Key, "C", 8, 8, config)
+	drawHeaderTextOnly(pdf, midX, y+42, midW, 9, "CONSULTA EM http://www.cte.fazenda.gov.br", "C", 8, config)
+	drawHeaderCell(pdf, midX, y+51, midW, 10, "PROTOCOLO DE AUTORIZAÇÃO DE USO", strings.TrimSpace(data.Protocol+" "+data.ProtocolDate+" "+data.ProtocolTime), "C", 8, 8, config)
+	drawHeaderCellWithValueOffset(pdf, x, y+27, leftW, 8, "TIPO DO CT-E", data.CTeType, "L", 8, 8, 2.7, config)
+	drawHeaderCellWithValueOffset(pdf, x, y+35, leftW, 8, "TIPO DO SERVIÇO", data.ServiceType, "L", 8, 8, 2.7, config)
+	drawHeaderCellWithValueOffset(pdf, x, y+43, leftW, 9, "TOMADOR DO SERVIÇO", data.TomadorType, "L", 8, 8, 2.7, config)
+	drawHeaderCellWithValueOffset(pdf, x, y+52, leftW, 9, "CFOP - NATUREZA DA PRESTAÇÃO", strings.TrimSpace(data.CFOP+" - "+data.Nature), "L", 8, 7, 2.7, config)
+
+	drawQR(pdf, x+w-44, y+11, data.QRCode)
 	pdf.SetFont(string(config.FontType), "", 6.5)
 	pdf.SetXY(x+w/2+18, y+31)
-	pdf.MultiCell(w/2-20, 3, "CHAVE DE ACESSO", "", "L", false)
+	pdf.MultiCell(w/2-20, 3, "", "", "L", false)
 	pdf.SetFont(string(config.FontType), "B", 7)
-	pdf.SetXY(x+w/2+18, y+35)
-	pdf.MultiCell(w/2-20, 3, data.Key, "", "L", false)
-	pdf.SetFont(string(config.FontType), "", 6.5)
-	pdf.SetXY(x+w/2+18, y+43)
-	pdf.MultiCell(w/2-20, 3, "CONSULTA EM http://www.cte.fazenda.gov.br", "", "L", false)
-	pdf.SetXY(x+w/2+18, y+51)
-	pdf.MultiCell(w/2-20, 3, "PROTOCOLO DE AUTORIZAÇÃO DE USO", "", "L", false)
-	pdf.SetFont(string(config.FontType), "B", 6.5)
-	pdf.SetXY(x+w/2+18, y+55)
-	pdf.MultiCell(w/2-20, 3, strings.TrimSpace(data.Protocol+" "+data.ProtocolDate+" "+data.ProtocolTime), "", "L", false)
 	pdf.SetFont(string(config.FontType), "", 6.5)
 	pdf.SetXY(x+w/2+18, y+62)
 	pdf.MultiCell(w/2-20, 3, "INÍCIO DA PRESTAÇÃO "+data.StartLocation, "", "L", false)
@@ -598,9 +629,30 @@ func drawHeader(pdf *pdfdraw.PDF, x, y, w float64, data cteData, config Config) 
 	pdf.MultiCell(w/2-20, 3, "TÉRMINO DA PRESTAÇÃO "+data.EndLocation, "", "L", false)
 }
 
+func drawHeaderCell(pdf *pdfdraw.PDF, x, y, w, h float64, label, value, align string, labelSize, valueSize float64, config Config) {
+	drawHeaderCellWithValueOffset(pdf, x, y, w, h, label, value, align, labelSize, valueSize, 5, config)
+}
+
+func drawHeaderCellWithValueOffset(pdf *pdfdraw.PDF, x, y, w, h float64, label, value, align string, labelSize, valueSize, valueYOffset float64, config Config) {
+	pdf.Rect(x, y, w, h, "")
+	pdf.SetFont(string(config.FontType), "", labelSize)
+	pdf.SetXY(x+1, y+1)
+	pdf.MultiCell(w-2, 2.4, label, "", align, false)
+	pdf.SetFont(string(config.FontType), "B", valueSize)
+	pdf.SetXY(x+1, y+valueYOffset)
+	pdf.MultiCell(w-2, h-valueYOffset, value, "", align, false)
+}
+
+func drawHeaderTextOnly(pdf *pdfdraw.PDF, x, y, w, h float64, text, align string, size float64, config Config) {
+	pdf.Rect(x, y, w, h, "")
+	pdf.SetFont(string(config.FontType), "", size)
+	pdf.SetXY(x, y)
+	pdf.MultiCell(w, h, text, "", align, false)
+}
+
 func drawParties(pdf *pdfdraw.PDF, x, y, w float64, data cteData, config Config) {
 	blockW := w / 2
-	blockH := 24.5
+	blockH := 20.0
 	drawPartyBlock(pdf, x, y, blockW, blockH, "REMETENTE", data.Sender, config)
 	drawPartyBlock(pdf, x+blockW, y, blockW, blockH, "DESTINATÁRIO", data.Recipient, config)
 	drawPartyBlock(pdf, x, y+blockH, blockW, blockH, "EXPEDIDOR", data.Expeditor, config)
@@ -619,11 +671,11 @@ func drawPartyBlock(pdf *pdfdraw.PDF, x, y, w, h float64, title string, p party,
 		{"IE", p.IE},
 		{"FONE", p.Phone},
 	}
-	drawLabelValueRows(pdf, x+1, y+1, w-2, rows, 4.7, 2.8, 15, config)
+	drawLabelValueRows(pdf, x+1, y+1, w-2, rows, 4.5, 2.25, 15, config)
 }
 
 func drawTomadorCargo(pdf *pdfdraw.PDF, x, y, w float64, data cteData, config Config) {
-	pdf.Rect(x, y, w, 34, "")
+	pdf.Rect(x, y, w, 22, "")
 	tomadorFields := []field{
 		{"TOMADOR DO SERVIÇO", data.Tomador.Name},
 		{"ENDEREÇO", tomadorAddress(data.Tomador)},
@@ -635,39 +687,92 @@ func drawTomadorCargo(pdf *pdfdraw.PDF, x, y, w float64, data cteData, config Co
 		{"PAÍS", data.Tomador.Country},
 		{"FONE", data.Tomador.Phone},
 	}
-	drawLabelValueRows(pdf, x+1, y+1, w-2, tomadorFields, 5, 3, 28, config)
-	drawFieldGrid(pdf, x+1, y+12, w-2, 20, data.Cargo, 5, 3, 5, config)
+	drawLabelValueRows(pdf, x+1, y+1, w-2, tomadorFields, 4.6, 2.2, 28, config)
+	drawFieldGrid(pdf, x+1, y+11, w-2, 10, data.Cargo, 4.6, 2.2, 5, config)
 }
 
 func drawValuesTaxes(pdf *pdfdraw.PDF, x, y, w float64, data cteData, config Config) {
 	titleH := 4.0
-	drawSectionTitle(pdf, x, y, w, titleH, "COMPONENTES DO VALOR DA PRESTAÇÃO DO SERVIÇO", config)
-	componentFields := []field{{"NOME", "VALOR"}}
-	componentFields = append(componentFields, data.Components...)
-	componentFields = append(componentFields,
-		field{"VALOR TOTAL DO SERVIÇO", data.FreightTotal},
-		field{"VALOR TOTAL A RECEBER", data.Receivable},
-	)
-	drawFieldGrid(pdf, x, y+titleH, w, 15, componentFields, 5.2, 2.8, 4, config)
+	componentY := y - 2
+	drawSectionTitle(pdf, x, componentY, w, titleH, "COMPONENTES DO VALOR DA PRESTAÇÃO DO SERVIÇO", config)
+	drawComponentValueGrid(pdf, x, componentY+titleH, w, data, config)
 
 	taxY := y + titleH + 15
 	drawSectionTitle(pdf, x, taxY, w, titleH, "INFORMAÇÕES RELATIVAS AO IMPOSTO", config)
 	taxFields := append([]field{}, data.ICMS...)
 	taxFields = append(taxFields, data.IBSCBS...)
-	drawFieldGrid(pdf, x, taxY+titleH, w, 15, taxFields, 5.1, 2.8, 7, config)
+	taxCols := 6
+	if len(data.IBSCBS) > 0 {
+		taxCols = 7
+	}
+	drawFieldGrid(pdf, x, taxY+titleH, w, 15, taxFields, 5.1, 2.8, taxCols, config)
+}
+
+func drawComponentValueGrid(pdf *pdfdraw.PDF, x, y, w float64, data cteData, config Config) {
+	pdf.Rect(x, y, w, 18, "")
+	colW := (w - 2*x) / 4
+	if colW <= 0 {
+		colW = w / 4
+	}
+	for i := 1; i < 4; i++ {
+		xLine := x + float64(i)*colW
+		pdf.Line(xLine, y, xLine, y+18)
+	}
+	pdf.SetFont(string(config.FontType), "", 8)
+	for col := 0; col < 3; col++ {
+		nameX := x + float64(col)*colW
+		valueX := nameX + colW/2
+		pdf.SetXY(nameX, y+2)
+		pdf.CellFormat(colW/2, 4, "NOME", "", 0, "L", false, 0, "")
+		pdf.SetXY(valueX, y+2)
+		pdf.CellFormat(colW/2, 4, "VALOR", "", 0, "L", false, 0, "")
+	}
+	for col := 0; col < 3; col++ {
+		start := col * 3
+		if start >= len(data.Components) {
+			continue
+		}
+		end := start + 3
+		if end > len(data.Components) {
+			end = len(data.Components)
+		}
+		xStart := x + float64(col)*colW
+		for row, component := range data.Components[start:end] {
+			rowY := y + 6 + float64(row)*4
+			pdf.SetXY(xStart, rowY)
+			pdf.CellFormat(colW/2, 4, component.Label, "", 0, "L", false, 0, "")
+			pdf.SetXY(xStart+colW/2, rowY)
+			pdf.CellFormat(colW/2, 4, component.Value, "", 0, "L", false, 0, "")
+		}
+	}
+	totalX := x + 3*colW
+	pdf.SetFont(string(config.FontType), "", 8)
+	pdf.SetXY(totalX, y)
+	pdf.MultiCell(colW, 4, "VALOR TOTAL DO SERVIÇO", "", "L", false)
+	pdf.SetFont(string(config.FontType), "B", 8)
+	pdf.SetXY(totalX, y+4)
+	pdf.MultiCell(colW, 4, data.FreightTotal, "", "L", false)
+	pdf.Line(totalX, y+10, x+w-1, y+10)
+	pdf.SetFont(string(config.FontType), "", 8)
+	pdf.SetXY(totalX, y+9)
+	pdf.MultiCell(colW, 8, "VALOR TOTAL A RECEBER", "", "L", false)
+	pdf.SetFont(string(config.FontType), "B", 8)
+	pdf.SetXY(totalX, y+13)
+	pdf.MultiCell(colW, 7, data.Receivable, "", "L", false)
 }
 
 func drawDocumentsObservations(pdf *pdfdraw.PDF, x, y, w float64, data cteData, config Config) float64 {
 	firstObservationText, _ := splitObservationText(observationText(data.Observations))
-	height := drawOriginDocuments(pdf, x, y, w, limitDocuments(data.LinkedDocuments, 0, firstPageDocumentLimit), firstPageDocumentRows, 1.75, 25, config)
+	height := drawOriginDocuments(pdf, x, y, w, limitDocuments(data.LinkedDocuments, 0, firstPageDocumentLimit), firstPageDocumentRows, 2.5, 37, config)
 	height += drawObservations(pdf, x, y+height, w, firstObservationText, config)
 	return height
 }
 
 func drawOriginDocuments(pdf *pdfdraw.PDF, x, y, w float64, docs []linkedDocument, rowsPerColumn int, rowH, blockH float64, config Config) float64 {
 	titleH := 4.0
-	drawSectionTitle(pdf, x, y, w, titleH, "DOCUMENTOS ORIGINÁRIOS", config)
-	docY := y + titleH
+	documentY := y - 1.5
+	drawSectionTitle(pdf, x, documentY, w, titleH, "DOCUMENTOS ORIGINÁRIOS", config)
+	docY := documentY + titleH
 	pdf.Rect(x, docY, w, blockH, "")
 	half := w / 2
 	leftEnd := rowsPerColumn
@@ -690,11 +795,11 @@ func drawOriginDocuments(pdf *pdfdraw.PDF, x, y, w float64, docs []linkedDocumen
 func drawObservations(pdf *pdfdraw.PDF, x, y, w float64, text string, config Config) float64 {
 	titleH := 4.0
 	drawSectionTitle(pdf, x, y, w, titleH, "OBSERVAÇÕES", config)
-	pdf.Rect(x, y+titleH, w, 11, "")
+	pdf.Rect(x, y+titleH, w, 6, "")
 	pdf.SetFont(string(config.FontType), "", 5.8)
 	pdf.SetXY(x+1, y+titleH+1)
 	pdf.MultiCell(w-2, 2.7, text, "", "L", false)
-	return titleH + 11
+	return titleH + 6
 }
 
 func drawModalSpecific(pdf *pdfdraw.PDF, x, y, w float64, data cteData, config Config) {
@@ -769,9 +874,13 @@ func drawDenseBox(pdf *pdfdraw.PDF, x, y, w, h float64, fields []field, config C
 
 func drawSectionTitle(pdf *pdfdraw.PDF, x, y, w, h float64, title string, config Config) {
 	pdf.Rect(x, y, w, h, "")
-	pdf.SetFont(string(config.FontType), "B", 5.8)
-	pdf.SetXY(x+1, y+0.8)
-	pdf.CellFormat(w-2, h-1, title, "", 1, "C", false, 0, "")
+	textW := w - 2*x
+	if textW <= 0 || textW > w {
+		textW = w
+	}
+	pdf.SetFont(string(config.FontType), "", 6.5)
+	pdf.SetXY(x, y+0.2)
+	pdf.CellFormat(textW, h, title, "", 1, "C", false, 0, "")
 }
 
 func drawLabelValueRows(pdf *pdfdraw.PDF, x, y, w float64, rows []field, fontSize, rowH, valueX float64, config Config) {
@@ -841,7 +950,7 @@ func drawQR(pdf *pdfdraw.PDF, x, y float64, data string) {
 	}
 	name := "dacte-qr"
 	pdf.RegisterImageOptionsReader(name, fpdf.ImageOptions{ImageType: "PNG"}, bytes.NewReader(pngBytes))
-	pdf.ImageOptions(name, x, y, 28, 28, false, fpdf.ImageOptions{ImageType: "PNG"}, 0, "")
+	pdf.ImageOptions(name, x, y, 38, 38, false, fpdf.ImageOptions{ImageType: "PNG"}, 0, "")
 }
 
 func drawBarcode(pdf *pdfdraw.PDF, x, y float64, key string) {
@@ -854,7 +963,7 @@ func drawBarcode(pdf *pdfdraw.PDF, x, y float64, key string) {
 	}
 	name := "dacte-code128-" + key
 	pdf.RegisterImageOptionsReader(name, fpdf.ImageOptions{ImageType: "PNG"}, bytes.NewReader(pngBytes))
-	pdf.ImageOptions(name, x, y, 86, 14, false, fpdf.ImageOptions{ImageType: "PNG"}, 0, "")
+	pdf.ImageOptions(name, x, y, 82, 8.5, false, fpdf.ImageOptions{ImageType: "PNG"}, 0, "")
 }
 
 func modalName(code string) string {

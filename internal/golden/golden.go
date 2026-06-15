@@ -2,11 +2,13 @@ package golden
 
 import (
 	"bytes"
+	"encoding/xml"
 	"errors"
 	"fmt"
 	"image"
 	"image/color"
 	"image/png"
+	"io"
 	"math"
 	"os"
 	"os/exec"
@@ -33,6 +35,14 @@ type RasterDiff struct {
 	Height            int
 	MeanAbsoluteError float64
 	MaxChannelError   uint32
+}
+
+type TextWord struct {
+	Text string
+	XMin float64
+	YMin float64
+	XMax float64
+	YMax float64
 }
 
 func IsPDF(path string) error {
@@ -220,6 +230,49 @@ func ExtractText(path string) (string, error) {
 		return "", err
 	}
 	return string(output), nil
+}
+
+func ExtractTextWords(path string) ([]TextWord, error) {
+	if !PDFTextAvailable() {
+		return nil, errors.New("pdftotext not available")
+	}
+	output, err := exec.Command("pdftotext", "-enc", "UTF-8", "-bbox-layout", path, "-").Output()
+	if err != nil {
+		return nil, err
+	}
+	decoder := xml.NewDecoder(bytes.NewReader(output))
+	var words []TextWord
+	for {
+		token, err := decoder.Token()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		start, ok := token.(xml.StartElement)
+		if !ok || start.Name.Local != "word" {
+			continue
+		}
+		var word struct {
+			XMin float64 `xml:"xMin,attr"`
+			YMin float64 `xml:"yMin,attr"`
+			XMax float64 `xml:"xMax,attr"`
+			YMax float64 `xml:"yMax,attr"`
+			Text string  `xml:",chardata"`
+		}
+		if err := decoder.DecodeElement(&word, &start); err != nil {
+			return nil, err
+		}
+		words = append(words, TextWord{
+			Text: strings.TrimSpace(word.Text),
+			XMin: word.XMin,
+			YMin: word.YMin,
+			XMax: word.XMax,
+			YMax: word.YMax,
+		})
+	}
+	return words, nil
 }
 
 func SameExtractedText(actualPath, expectedPath string) error {

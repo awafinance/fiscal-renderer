@@ -113,6 +113,7 @@ type party struct {
 	Doc          string
 	IE           string
 	Address      string
+	Complement   string
 	District     string
 	City         string
 	UF           string
@@ -239,6 +240,7 @@ func parseParty(node *xmlutil.Node) party {
 		Doc:          optional(firstNonEmpty(fiscalfmt.FormatCPFCNPJ(xmlutil.Text(node, "CNPJ")), fiscalfmt.FormatCPFCNPJ(xmlutil.Text(node, "CPF")))),
 		IE:           optional(xmlutil.Text(node, "IE")),
 		Address:      formatAddress(addressNode),
+		Complement:   optional(xmlutil.Text(addressNode, "xCpl")),
 		District:     optional(xmlutil.Text(addressNode, "xBairro")),
 		City:         optional(xmlutil.Text(addressNode, "xMun")),
 		UF:           optional(xmlutil.Text(addressNode, "UF")),
@@ -267,6 +269,22 @@ func formatAddress(node *xmlutil.Node) string {
 		return "-"
 	}
 	return strings.Join(parts, ", ")
+}
+
+func issuerHeaderAddress(p party) string {
+	streetNumber := strings.Join(nonEmpty(p.Street, p.Number), ", ")
+	lines := nonEmpty(
+		streetNumber,
+		p.Complement,
+		p.District,
+		strings.TrimSpace(strings.Join(nonEmpty(p.City, p.UF), " - ")),
+		p.CEP,
+		"Fone: "+p.Phone,
+	)
+	if len(lines) == 0 {
+		return p.Address
+	}
+	return strings.Join(lines, "\n")
 }
 
 func parseProducts(detNodes []*xmlutil.Node, crt string, config Config) []product {
@@ -471,35 +489,35 @@ func headerAdvance(data nfeData) float64 {
 	if data.Orientation == "L" {
 		return 44
 	}
-	return 58
+	return 40
 }
 
 func recipientAdvance(data nfeData) float64 {
 	if data.Orientation == "L" {
 		return 22
 	}
-	return 27
+	return 22
 }
 
 func taxBlockMetrics(data nfeData) (height, advance float64) {
 	if data.Orientation == "L" {
 		return 12, 13
 	}
-	return 25, 28
+	return 13, 14
 }
 
 func shippingBlockMetrics(data nfeData) (height, advance float64) {
 	if data.Orientation == "L" {
 		return 18, 19
 	}
-	return 21, 24
+	return 18, 19
 }
 
 func productReserve(data nfeData) float64 {
 	if data.Orientation == "L" {
 		return 23
 	}
-	return 52
+	return 27
 }
 
 func normalizedProductHeight(height float64) float64 {
@@ -537,43 +555,43 @@ func draw(pdf *pdfdraw.PDF, data nfeData, config Config, continuation bool) int 
 	}
 	pdf.Rect(x, y, w, h, "")
 	if continuation {
-		drawHeader(pdf, x+2, y+2, w-4, data, config, true)
+		drawHeader(pdf, x, y+2, w, data, config, true)
 		y += headerAdvance(data)
 		if productsNeedContinuation(data.Products, data.Orientation) {
 			start := data.ProductSplitIndex
-			drawProducts(pdf, x+2, y, w-4, h-103, data.Products, data.ProductTaxCodeHeader, config, start, len(data.Products))
-			drawAdditionalContinuation(pdf, x+2, y+h-42, w-4, 38, data, config)
+			drawProducts(pdf, x, y, w, h-103, data.Products, data.ProductTaxCodeHeader, config, start, len(data.Products))
+			drawAdditionalContinuation(pdf, x, y+h-42, w, 38, data, config)
 		} else {
-			drawAdditionalContinuation(pdf, x+2, y, w-4, h-64, data, config)
+			drawAdditionalContinuation(pdf, x, y, w, h-64, data, config)
 		}
 		drawFooterStamp(pdf, config)
 		return 0
 	}
 	if data.Orientation != "L" && config.ReceiptPosition == ReceiptPositionTop {
 		drawReceipt(pdf, x, y, w, 18, data, config)
-		y += 21
+		y += 20
 	}
-	drawHeader(pdf, x+2, y+2, w-4, data, config, false)
+	drawHeader(pdf, x, y+2, w, data, config, false)
 	y += headerAdvance(data)
-	drawRecipient(pdf, x+2, y, w-4, data, config)
+	drawRecipient(pdf, x, y, w, data, config)
 	y += recipientAdvance(data)
 	if data.Pickup != nil {
-		drawLocation(pdf, x+2, y, w-4, "INFORMAÇÕES DO LOCAL DE RETIRADA", *data.Pickup, config)
+		drawLocation(pdf, x, y, w, "INFORMAÇÕES DO LOCAL DE RETIRADA", *data.Pickup, config)
 		y += locationBlockHeight
 	}
 	if data.Delivery != nil {
-		drawLocation(pdf, x+2, y, w-4, "INFORMAÇÕES DO LOCAL DE ENTREGA", *data.Delivery, config)
+		drawLocation(pdf, x, y, w, "INFORMAÇÕES DO LOCAL DE ENTREGA", *data.Delivery, config)
 		y += locationBlockHeight
 	}
 	if data.Billing != nil {
-		drawInvoices(pdf, x+2, y, w-4, 20, data.Billing, data.Invoices, config)
-		y += 23
+		drawInvoices(pdf, x, y, w, 12, data.Billing, data.Invoices, config)
+		y += 12
 	}
 	taxHeight, taxAdvance := taxBlockMetrics(data)
-	drawBox(pdf, x+2, y, w-4, taxHeight, "CÁLCULO DO IMPOSTO", append(data.Totals, data.Taxes...), config, 6)
+	drawBox(pdf, x, y, w, taxHeight, "CÁLCULO DO IMPOSTO", append(data.Totals, data.Taxes...), config, 6)
 	y += taxAdvance
 	shippingHeight, shippingAdvance := shippingBlockMetrics(data)
-	drawBox(pdf, x+2, y, w-4, shippingHeight, "TRANSPORTADOR / VOLUMES TRANSPORTADOS", data.Shipping, config, 6)
+	drawBox(pdf, x, y, w, shippingHeight, "TRANSPORTADOR / VOLUMES TRANSPORTADOS", data.Shipping, config, 6)
 	y += shippingAdvance
 	remaining := h - (y - config.Margins.Top)
 	if data.Orientation != "L" && config.ReceiptPosition == ReceiptPositionBottom {
@@ -581,20 +599,17 @@ func draw(pdf *pdfdraw.PDF, data nfeData, config Config, continuation bool) int 
 	}
 	productH := normalizedProductHeight(remaining - productReserve(data))
 	productLimit := len(data.Products)
-	if productsNeedContinuation(data.Products, data.Orientation) {
+	if productsNeedContinuation(data.Products, data.Orientation) && data.ProductSplitIndex > 0 {
 		productLimit = data.ProductSplitIndex
-		if productLimit == 0 {
-			productLimit = productLimitForHeight(productH, productRowHeight(config))
-		}
 	}
-	drawProducts(pdf, x+2, y, w-4, productH, data.Products, data.ProductTaxCodeHeader, config, 0, productLimit)
+	drawnLimit := drawProducts(pdf, x, y, w, productH, data.Products, data.ProductTaxCodeHeader, config, 0, productLimit)
 	y += productH + 3
-	drawAdditional(pdf, x+2, y, w-4, minFloat(46, h-(y-config.Margins.Top)-4), "DADOS ADICIONAIS", data, config)
+	drawAdditional(pdf, x, y, w, minFloat(46, h-(y-config.Margins.Top)-4), "DADOS ADICIONAIS", data, config)
 	if data.Orientation != "L" && config.ReceiptPosition == ReceiptPositionBottom {
 		drawReceipt(pdf, x, pageH-bottomMargin(config)-20, w, 18, data, config)
 	}
 	drawFooterStamp(pdf, config)
-	return productLimit
+	return drawnLimit
 }
 
 func drawWatermark(pdf *pdfdraw.PDF, data nfeData, config Config) {
@@ -655,17 +670,15 @@ func drawLandscapeReceipt(pdf *pdfdraw.PDF, x, y, w, h float64, data nfeData, co
 }
 
 func drawHeader(pdf *pdfdraw.PDF, x, y, w float64, data nfeData, config Config, continuation bool) {
-	h := 40.0
-	operationH := 13.0
-	titleY := 3.0
-	entryY := 18.0
-	invoiceY := 25.0
-	barcodeY := 2.0
-	keyY := 17.0
-	queryY := 29.0
+	h := 28.0
+	titleY := -2.0
+	entryY := 9.4
+	invoiceY := 18.2
+	barcodeY := 1.5
+	keyY := 8.5
+	queryY := 15.5
 	if data.Orientation == "L" {
 		h = 29
-		operationH = 10
 		titleY = 2
 		entryY = 13
 		invoiceY = 18
@@ -673,34 +686,59 @@ func drawHeader(pdf *pdfdraw.PDF, x, y, w float64, data nfeData, config Config, 
 		keyY = 12
 		queryY = 21
 	}
-	emitW := w - 122
+	idW := 33.0
+	codeW := 88.0
+	emitW := w - idW - codeW
 	if emitW < 65 {
 		emitW = w * 0.38
+		codeW = w - emitW - idW
 	}
-	idW := 34.0
-	codeW := w - emitW - idW
 	pdf.Rect(x, y, emitW, h, "")
+	hasLogo := len(config.LogoBytes) > 0 || config.Logo != ""
 	if len(config.LogoBytes) > 0 {
-		pdf.ImageBytes("danfe-logo", config.LogoBytes, x+2, y+2, 20, 0)
+		pdf.ImageBytes("danfe-logo", config.LogoBytes, x+2, y+10, 30, 0)
 	} else if config.Logo != "" {
 		if imageType, _ := images.TypeFromFile(config.Logo); imageType != "" {
-			pdf.ImageOptions(config.Logo, x+2, y+2, 20, 0, false, fpdf.ImageOptions{ImageType: imageType}, 0, "")
+			pdf.ImageOptions(config.Logo, x+2, y+10, 30, 0, false, fpdf.ImageOptions{ImageType: imageType}, 0, "")
 		}
 	}
-	pdf.SetFont(string(config.FontType), "B", fontSize(config, 7))
-	pdf.SetXY(x+24, y+2)
-	pdf.MultiCell(emitW-26, 3.2, data.Issuer.Name, "", "L", false)
-	pdf.SetFont(string(config.FontType), "", fontSize(config, 6))
-	pdf.SetXY(x+24, y+9)
-	pdf.MultiCell(emitW-26, 3, strings.Join(nonEmpty(data.Issuer.Address, data.Issuer.City+" - "+data.Issuer.UF, data.Issuer.CEP, "Fone: "+data.Issuer.Phone), "\n"), "", "L", false)
+	issuerNameY := y + 1
+	issuerAddressY := y + 12
+	if !hasLogo {
+		issuerNameY = y
+		issuerAddressY = y + 8.5
+	}
+	pdf.SetFont(string(config.FontType), "B", fontSize(config, 12))
+	pdf.SetXY(x, issuerNameY)
+	pdf.MultiCell(emitW, 4, data.Issuer.Name, "", "C", false)
+	addressX := x + 2
+	addressW := emitW - 4
+	if hasLogo {
+		addressX = x + 32
+		addressW = emitW - 33
+	}
+	pdf.SetFont(string(config.FontType), "", fontSize(config, 8))
+	pdf.SetXY(addressX, issuerAddressY)
+	pdf.MultiCell(addressW, 3, issuerHeaderAddress(data.Issuer), "", "C", false)
 	pdf.Rect(x+emitW, y, idW, h, "")
-	pdf.SetFont(string(config.FontType), "B", fontSize(config, 10))
 	title := "DANFE"
 	if continuation {
 		title = "DANFE\nCONTINUAÇÃO"
 	}
-	pdf.SetXY(x+emitW, y+titleY)
-	pdf.MultiCell(idW, 3.2, title+"\nDOCUMENTO AUXILIAR\nDA NOTA FISCAL\nELETRÔNICA", "", "C", false)
+	if continuation {
+		pdf.SetFont(string(config.FontType), "B", fontSize(config, 10))
+		pdf.SetXY(x+emitW, y+titleY)
+		pdf.MultiCell(idW, 3.2, title, "", "C", false)
+	} else {
+		pdf.SetFont(string(config.FontType), "B", fontSize(config, 12))
+		pdf.SetXY(x+emitW, y-3)
+		pdf.CellFormat(idW, 4, "DANFE", "", 2, "C", false, 0, "")
+	}
+	pdf.SetFont(string(config.FontType), "", fontSize(config, 7))
+	pdf.SetXY(x+emitW, y+0.4)
+	pdf.CellFormat(idW, 3, "DOCUMENTO AUXILIAR", "", 2, "C", false, 0, "")
+	pdf.CellFormat(idW, 3, "DA NOTA FISCAL", "", 2, "C", false, 0, "")
+	pdf.CellFormat(idW, 3, "ELETRÔNICA", "", 2, "C", false, 0, "")
 	pdf.SetFont(string(config.FontType), "", fontSize(config, 6))
 	pdf.SetXY(x+emitW+1, y+entryY)
 	pdf.MultiCell(idW-2, 3, "0-ENTRADA\n1-SAÍDA", "", "L", false)
@@ -709,18 +747,39 @@ func drawHeader(pdf *pdfdraw.PDF, x, y, w float64, data nfeData, config Config, 
 	pdf.MultiCell(idW-2, 3, data.NFTypeCode+"\nNº "+formatInvoiceNumber(data.Number)+"\nSÉRIE "+data.Series+"\nFOLHA "+danfePageLabel(pdf, data), "", "C", false)
 	pdf.Rect(x+emitW+idW, y, codeW, h, "")
 	drawBarcode(pdf, x+emitW+idW+4, y+barcodeY, codeW-8, data.Key, data.BarcodePNG)
-	pdf.SetFont(string(config.FontType), "B", fontSize(config, 6.2))
-	pdf.SetXY(x+emitW+idW+2, y+keyY)
-	pdf.MultiCell(codeW-4, 3, "CHAVE DE ACESSO\n"+strings.Join(fiscalfmt.Chunks(data.Key, 4), " "), "", "C", false)
+	pdf.SetFont(string(config.FontType), "", fontSize(config, 5))
+	pdf.SetXY(x+emitW+idW+1, y+keyY-0.8)
+	pdf.CellFormat(codeW-2, 2.8, "CHAVE DE ACESSO", "", 2, "L", false, 0, "")
+	pdf.SetFont(string(config.FontType), "B", fontSize(config, 7))
+	pdf.SetXY(x+emitW+idW, y+keyY+2.0)
+	pdf.MultiCell(codeW, 3, strings.Join(fiscalfmt.Chunks(data.Key, 4), " "), "", "C", false)
 	pdf.SetFont(string(config.FontType), "", fontSize(config, 5.8))
 	pdf.SetXY(x+emitW+idW+2, y+queryY)
 	pdf.MultiCell(codeW-4, 3, "Consulta de autenticidade no portal nacional da NF-e www.nfe.fazenda.gov.br/portal ou no site da Sefaz autorizadora", "", "C", false)
-	drawBox(pdf, x, y+h+1, w, operationH, "", []field{
-		{"NATUREZA DA OPERAÇÃO", data.Nature},
-		{"PROTOCOLO DE AUTORIZAÇÃO DE USO", strings.TrimSpace(data.Protocol + " - " + data.ProtocolDate + " " + data.ProtocolTime)},
-		{"INSCRIÇÃO ESTADUAL", data.Issuer.IE},
-		{"CNPJ / CPF", data.Issuer.Doc},
-	}, config, 4)
+	rowsY := y + h
+	drawDANFEHeaderField(pdf, x, rowsY, emitW+idW, 6, "NATUREZA DA OPERAÇÃO", data.Nature, "", config)
+	drawDANFEHeaderField(pdf, x+emitW+idW, rowsY, codeW, 6, "PROTOCOLO DE AUTORIZAÇÃO DE USO", strings.TrimSpace(data.Protocol+" - "+data.ProtocolDate+" "+data.ProtocolTime), "protocolo", config)
+	thirdW := w / 3
+	drawDANFEHeaderField(pdf, x, rowsY+6, thirdW, 6, "INSCRIÇÃO ESTADUAL", data.Issuer.IE, "", config)
+	drawDANFEHeaderField(pdf, x+thirdW, rowsY+6, thirdW, 6, "INSCRIÇÃO ESTADUAL DO SUBST. TRIB", "", "", config)
+	drawDANFEHeaderField(pdf, x+(thirdW*2), rowsY+6, w-(thirdW*2), 6, "CNPJ / CPF", data.Issuer.Doc, "", config)
+}
+
+func drawDANFEHeaderField(pdf *pdfdraw.PDF, x, y, w, h float64, label, value, fieldType string, config Config) {
+	pdf.Rect(x, y, w, h, "")
+	pdf.SetFont(string(config.FontType), "", fontSize(config, 5))
+	pdf.SetXY(x+1, y+0.5)
+	pdf.CellFormat(w-2, 2.4, label, "", 2, "L", false, 0, "")
+	style := ""
+	align := "L"
+	size := fontSize(config, 6.2)
+	if fieldType == "protocolo" {
+		style = "B"
+		align = "C"
+		size = fontSize(config, 6.6)
+	}
+	pdf.SetFont(string(config.FontType), style, size)
+	pdf.MultiCell(w-2, 2.6, optional(value), "", align, false)
 }
 
 func drawRecipient(pdf *pdfdraw.PDF, x, y, w float64, data nfeData, config Config) {
@@ -754,7 +813,7 @@ const locationBlockHeight = 21.0
 func drawLocation(pdf *pdfdraw.PDF, x, y, w float64, title string, p party, config Config) {
 	pdf.Rect(x, y, w, locationBlockHeight, "")
 	pdf.SetFont(string(config.FontType), "B", fontSize(config, 6.2))
-	pdf.SetXY(x+1, y+1)
+	pdf.SetXY(x, y+1)
 	pdf.CellFormat(w-2, 3, title, "", 1, "L", false, 0, "")
 
 	line1 := []locationField{
@@ -799,9 +858,9 @@ func drawLocationRow(pdf *pdfdraw.PDF, x, y float64, fields []locationField, con
 func drawInvoices(pdf *pdfdraw.PDF, x, y, w, h float64, bill *billing, invoices []invoice, config Config) {
 	pdf.Rect(x, y, w, h, "")
 	pdf.SetFont(string(config.FontType), "B", fontSize(config, 6.2))
-	pdf.SetXY(x+1, y+1)
+	pdf.SetXY(x, y+1)
 	pdf.CellFormat(w-2, 3, "FATURA / DUPLICATAS", "", 1, "L", false, 0, "")
-	nextY := y + 5
+	nextY := y + 4
 	if config.InvoiceDisplay == InvoiceDisplayFullDetails && bill != nil {
 		fields := []field{
 			{Label: "NÚMERO", Value: bill.Number},
@@ -809,8 +868,8 @@ func drawInvoices(pdf *pdfdraw.PDF, x, y, w, h float64, bill *billing, invoices 
 			{Label: "VALOR DO DESCONTO", Value: bill.DiscountValue},
 			{Label: "VALOR LÍQUIDO", Value: bill.NetValue},
 		}
-		drawBox(pdf, x, nextY, w, 7, "", fields, config, 4)
-		nextY += 7
+		drawBox(pdf, x, nextY, w, 5, "", fields, config, 4)
+		nextY += 5
 	}
 	if len(invoices) == 0 {
 		return
@@ -828,10 +887,10 @@ func drawInvoices(pdf *pdfdraw.PDF, x, y, w, h float64, bill *billing, invoices 
 	}
 }
 
-func drawProducts(pdf *pdfdraw.PDF, x, y, w, h float64, products []product, taxCodeHeader string, config Config, start, limit int) {
+func drawProducts(pdf *pdfdraw.PDF, x, y, w, h float64, products []product, taxCodeHeader string, config Config, start, limit int) int {
 	pdf.Rect(x, y, w, h, "")
 	pdf.SetFont(string(config.FontType), "B", fontSize(config, 6.2))
-	pdf.SetXY(x+1, y+1)
+	pdf.SetXY(x, y+4)
 	pdf.CellFormat(w-2, 3, "DADOS DO PRODUTO / SERVIÇO", "", 1, "L", false, 0, "")
 	if taxCodeHeader == "" {
 		taxCodeHeader = "CST"
@@ -845,17 +904,17 @@ func drawProducts(pdf *pdfdraw.PDF, x, y, w, h float64, products []product, taxC
 		widths[1] -= 2
 		widths[3] += 2
 	}
-	top := y + 5
+	top := y + 7
+	headerH := 3.0
 	xi := x
-	pdf.SetFont(string(config.FontType), "B", fontSize(config, 4.8))
+	pdf.SetFont(string(config.FontType), "B", fontSize(config, 5))
 	for i, header := range headers {
-		pdf.Rect(xi, top, widths[i], 6, "")
-		pdf.SetXY(xi+0.3, top+1)
-		pdf.MultiCell(widths[i]-0.6, 2, header, "", "C", false)
+		pdf.Rect(xi, top, widths[i], headerH, "")
+		pdf.SetXY(xi, top)
+		pdf.CellFormat(widths[i]-1, 3, header, "", 0, "L", false, 0, "")
 		xi += widths[i]
 	}
-	rowY := top + 6
-	rowH := productRowHeight(config)
+	rowY := top + headerH
 	if start < 0 {
 		start = 0
 	}
@@ -865,8 +924,11 @@ func drawProducts(pdf *pdfdraw.PDF, x, y, w, h float64, products []product, taxC
 	if limit < start || limit > len(products) {
 		limit = len(products)
 	}
-	for _, product := range products[start:limit] {
-		if rowY+rowH > y+h-1 {
+	drawnLimit := start
+	pdf.SetFont(string(config.FontType), "", fontSize(config, 6))
+	for i, product := range products[start:limit] {
+		rowH := productCellRowHeight(pdf, product, widths[1], config)
+		if rowY+rowH > y+h+productRowFitTolerance {
 			break
 		}
 		values := []string{product.Code, product.Desc, product.NCM, product.CST, product.CFOP, product.Unit, product.Quantity, product.UnitPrice, product.TotalPrice, product.BCICMS, product.ICMSValue, product.IPIValue, product.ICMSRate, product.IPIRate}
@@ -874,20 +936,32 @@ func drawProducts(pdf *pdfdraw.PDF, x, y, w, h float64, products []product, taxC
 			values = append(values, product.PISValue, product.COFINS)
 		}
 		xi = x
-		pdf.SetFont(string(config.FontType), "", fontSize(config, 4.7))
+		pdf.SetFont(string(config.FontType), "", fontSize(config, 6))
 		for i, value := range values {
 			pdf.Rect(xi, rowY, widths[i], rowH, "")
-			pdf.SetXY(xi+0.3, rowY+0.8)
-			align := "C"
-			if i == 1 {
-				align = "L"
+			align := "L"
+			cellX := xi
+			cellW := widths[i] - 1
+			if i >= 6 && i <= 13 {
+				align = "R"
+				cellX = xi + 0.5
+				cellW = widths[i] - 0.5
 			}
-			pdf.MultiCell(widths[i]-0.6, 2.3, fiscalfmt.LimitText(value, maxChars(widths[i])), "", align, false)
+			pdf.SetXY(cellX, rowY-0.1)
+			if i == 1 {
+				pdf.MultiCell(cellW, 3, productCellText(pdf, value, widths[i], true), "", align, false)
+			} else {
+				pdf.CellFormat(cellW, 3, value, "", 0, align, false, 0, "")
+			}
 			xi += widths[i]
 		}
 		rowY += rowH
+		drawnLimit = start + i + 1
 	}
+	return drawnLimit
 }
+
+const productRowFitTolerance = 3.1
 
 func drawAdditional(pdf *pdfdraw.PDF, x, y, w, h float64, title string, data nfeData, config Config) {
 	if h < 10 {
@@ -895,15 +969,32 @@ func drawAdditional(pdf *pdfdraw.PDF, x, y, w, h float64, title string, data nfe
 	}
 	pdf.Rect(x, y, w, h, "")
 	pdf.SetFont(string(config.FontType), "B", fontSize(config, 6.2))
-	pdf.SetXY(x+1, y+1)
+	pdf.SetXY(x, y+1)
 	pdf.CellFormat(w-2, 3, title, "", 1, "L", false, 0, "")
+	reservedW := 70.0
+	infoW := w - reservedW
+	if infoW < w*0.5 {
+		infoW = w
+		reservedW = 0
+	}
+	pdf.Line(x, y+4, x+w, y+4)
+	if reservedW > 0 {
+		pdf.Line(x+infoW, y+4, x+infoW, y+h)
+	}
+	pdf.SetFont(string(config.FontType), "", fontSize(config, 5))
+	pdf.SetXY(x, y+4)
+	pdf.CellFormat(infoW-2, 3, "INFORMAÇÕES COMPLEMENTARES", "", 0, "L", false, 0, "")
+	if reservedW > 0 {
+		pdf.SetXY(x+infoW, y+4)
+		pdf.CellFormat(reservedW-2, 3, "RESERVADO AO FISCO", "", 0, "L", false, 0, "")
+	}
 	pdf.SetFont(string(config.FontType), "", fontSize(config, 5.8))
 	text := data.AdditionalInfo
 	if text == "" {
 		text = data.FiscoInfo
 	}
-	pdf.SetXY(x+1, y+5)
-	pdf.MultiCell(w-2, 2.7, text, "", "L", false)
+	pdf.SetXY(x+1, y+7)
+	pdf.MultiCell(infoW-2, 2.7, text, "", "L", false)
 }
 
 func drawAdditionalContinuation(pdf *pdfdraw.PDF, x, y, w, h float64, data nfeData, config Config) {
@@ -912,9 +1003,9 @@ func drawAdditionalContinuation(pdf *pdfdraw.PDF, x, y, w, h float64, data nfeDa
 	}
 	pdf.Rect(x, y, w, h, "")
 	pdf.SetFont(string(config.FontType), "B", fontSize(config, 6.2))
-	pdf.SetXY(x+1, y+1)
+	pdf.SetXY(x, y+1)
 	pdf.CellFormat(w-2, 3, "DADOS ADICIONAIS", "", 1, "L", false, 0, "")
-	pdf.SetXY(x+1, y+5)
+	pdf.SetXY(x, y+5)
 	pdf.CellFormat(w-2, 3, "CONTINUAÇÃO INFORMAÇÕES COMPLEMENTARES", "", 1, "L", false, 0, "")
 	pdf.SetFont(string(config.FontType), "", fontSize(config, 5.8))
 	text := data.AdditionalInfo
@@ -930,7 +1021,7 @@ func drawBox(pdf *pdfdraw.PDF, x, y, w, h float64, title string, fields []field,
 	startY := y + 1
 	if title != "" {
 		pdf.SetFont(string(config.FontType), "B", fontSize(config, 6.2))
-		pdf.SetXY(x+1, y+1)
+		pdf.SetXY(x, y+1)
 		pdf.CellFormat(w-2, 3, title, "", 1, "L", false, 0, "")
 		startY = y + 5
 	}
@@ -1021,8 +1112,58 @@ func productWidths(total float64, columns int) []float64 {
 		base := []float64{13, 40, 11, 7, 8, 7, 12, 13, 13, 12, 10, 9, 8, 8, 8, 9}
 		return scaleWidths(base, total)
 	}
-	base := []float64{15, 55, 12, 8, 9, 8, 13, 14, 14, 13, 11, 10, 9, 9}
-	return scaleWidths(base, total)
+	widths := []float64{15, 0, 11, 6, 7, 6, 12, 13, 13, 13, 10, 10, 9, 8}
+	fixed := 0.0
+	for _, width := range widths {
+		fixed += width
+	}
+	widths[1] = total - fixed
+	if widths[1] < 30 {
+		return scaleWidths([]float64{15, 55, 12, 8, 9, 8, 13, 14, 14, 13, 11, 10, 9, 9}, total)
+	}
+	return widths
+}
+
+func productCellRowHeight(pdf *pdfdraw.PDF, product product, descWidth float64, config Config) float64 {
+	lineHeight := 3.0
+	if config.FontSize == FontSizeBig {
+		lineHeight = 4.2
+	}
+	lines := 1
+	if desc := strings.TrimSpace(product.Desc); desc != "" {
+		lines = productCellLineCount(pdf, desc, descWidth-1)
+	}
+	return maxFloat(productRowHeight(config), float64(lines)*lineHeight)
+}
+
+func productCellText(pdf *pdfdraw.PDF, value string, width float64, preserveLines bool) string {
+	if !preserveLines {
+		return fiscalfmt.LimitText(value, maxChars(width))
+	}
+	return value
+}
+
+func productCellLineCount(pdf *pdfdraw.PDF, value string, width float64) int {
+	if width <= 0 {
+		return len(strings.Split(value, "\n"))
+	}
+	count := 0
+	for _, line := range strings.Split(value, "\n") {
+		if line == "" {
+			count++
+			continue
+		}
+		split := pdf.SplitLines([]byte(pdf.Encode(line)), width)
+		if len(split) == 0 {
+			count++
+		} else {
+			count += len(split)
+		}
+	}
+	if count == 0 {
+		return 1
+	}
+	return count
 }
 
 func scaleWidths(base []float64, total float64) []float64 {

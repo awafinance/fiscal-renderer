@@ -2,6 +2,7 @@ package damdfe
 
 import (
 	"bytes"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -137,6 +138,58 @@ func TestHeaderFieldsMatchUpstreamTextContract(t *testing.T) {
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("header text missing %q in %q", want, text)
+		}
+	}
+}
+
+func TestHeaderTitlePositionTracksGeneratedReference(t *testing.T) {
+	if !golden.PDFTextAvailable() {
+		t.Skip("pdftotext not available")
+	}
+	actual := renderFixturePDF(t, "mdf-e_test_1.xml", nil)
+	expected := filepath.Join("..", "tests", "generated", "damdfe", "damdfe_default.pdf")
+	actualTitle := mustFindPDFWord(t, actual, "DAMDFE")
+	expectedTitle := mustFindPDFWord(t, expected, "DAMDFE")
+	if delta := math.Abs(actualTitle.XMin - expectedTitle.XMin); delta > 2 {
+		t.Fatalf("DAMDFE title x drifted by %.2f pt: actual=%f expected=%f", delta, actualTitle.XMin, expectedTitle.XMin)
+	}
+	if delta := math.Abs(actualTitle.YMin - expectedTitle.YMin); delta > 2 {
+		t.Fatalf("DAMDFE title y drifted by %.2f pt: actual=%f expected=%f", delta, actualTitle.YMin, expectedTitle.YMin)
+	}
+}
+
+func TestBodySectionPositionsTrackGeneratedReference(t *testing.T) {
+	if !golden.PDFTextAvailable() {
+		t.Skip("pdftotext not available")
+	}
+	actual := renderFixturePDF(t, "mdf-e_test_1.xml", nil)
+	expected := filepath.Join("..", "tests", "generated", "damdfe", "damdfe_default.pdf")
+	for _, tt := range []struct {
+		word string
+		xMin float64
+		xMax float64
+	}{
+		{word: "EMITENTE"},
+		{word: "TRANSPORTADOR"},
+		{word: "MODAL"},
+		{word: "INFORMAÇÕES"},
+		{word: "MUNICÍPIO", xMin: 0, xMax: 60},
+		{word: "SEGUROS"},
+		{word: "CIOT"},
+		{word: "AUTORIZACAO"},
+		{word: "DADOS"},
+	} {
+		actualWord := mustFindPDFWord(t, actual, tt.word)
+		expectedWord := mustFindPDFWord(t, expected, tt.word)
+		if tt.xMax > 0 {
+			actualWord = mustFindPDFWordInXRange(t, actual, tt.word, tt.xMin, tt.xMax)
+			expectedWord = mustFindPDFWordInXRange(t, expected, tt.word, tt.xMin, tt.xMax)
+		}
+		if delta := math.Abs(actualWord.XMin - expectedWord.XMin); delta > 4 {
+			t.Fatalf("%s x drifted by %.2f pt: actual=%f expected=%f", tt.word, delta, actualWord.XMin, expectedWord.XMin)
+		}
+		if delta := math.Abs(actualWord.YMin - expectedWord.YMin); delta > 4 {
+			t.Fatalf("%s y drifted by %.2f pt: actual=%f expected=%f", tt.word, delta, actualWord.YMin, expectedWord.YMin)
 		}
 	}
 }
@@ -298,6 +351,16 @@ func TestFixtureOutputsMatchGoldenShape(t *testing.T) {
 
 func renderFixtureText(t *testing.T, fixture string, config *Config) string {
 	t.Helper()
+	out := renderFixturePDF(t, fixture, config)
+	text, err := golden.ExtractText(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return golden.NormalizeExtractedText(text)
+}
+
+func renderFixturePDF(t *testing.T, fixture string, config *Config) string {
+	t.Helper()
 	xmlContent, err := os.ReadFile(filepath.Join("..", "tests", "fixtures", "damdfe", fixture))
 	if err != nil {
 		t.Fatal(err)
@@ -310,9 +373,35 @@ func renderFixtureText(t *testing.T, fixture string, config *Config) string {
 	if err := doc.Output(out); err != nil {
 		t.Fatal(err)
 	}
-	text, err := golden.ExtractText(out)
+	return out
+}
+
+func mustFindPDFWord(t *testing.T, path string, text string) golden.TextWord {
+	t.Helper()
+	words, err := golden.ExtractTextWords(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return golden.NormalizeExtractedText(text)
+	for _, word := range words {
+		if word.Text == text {
+			return word
+		}
+	}
+	t.Fatalf("word %q not found in %s", text, path)
+	return golden.TextWord{}
+}
+
+func mustFindPDFWordInXRange(t *testing.T, path string, text string, xMin, xMax float64) golden.TextWord {
+	t.Helper()
+	words, err := golden.ExtractTextWords(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, word := range words {
+		if word.Text == text && word.XMin >= xMin && word.XMin <= xMax {
+			return word
+		}
+	}
+	t.Fatalf("word %q in x range %.2f..%.2f not found in %s", text, xMin, xMax, path)
+	return golden.TextWord{}
 }

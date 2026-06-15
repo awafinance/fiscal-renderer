@@ -2,6 +2,7 @@ package danfse
 
 import (
 	"bytes"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -116,6 +117,82 @@ func TestPISCOFINSDebitValuesMatchUpstreamTextContract(t *testing.T) {
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("DANFSE PIS/COFINS text missing %q in %q", want, text)
+		}
+	}
+}
+
+func TestBenchmarkDANFSELongHeaderAndPartyFieldsMatchUpstreamLayout(t *testing.T) {
+	if !golden.PDFTextAvailable() {
+		t.Skip("pdftotext not available")
+	}
+	out := renderFixturePDF(t, "nfse_test_prod.xml", &Config{Margins: Margins{Top: 2, Right: 2, Bottom: 2, Left: 2}})
+	text, err := golden.ExtractText(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text = golden.NormalizeExtractedText(text)
+	for _, want := range []string{
+		"42046082240248250000160000000000099999999999999999",
+		"estoque@renataeleandropublicidadeepropagandame.com.br",
+		"sistema@bentoesilvanadocessalgadosltda.com.br",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("DANFSE layout truncated upstream-visible field %q in %q", want, text)
+		}
+	}
+	for _, unexpected := range []string{
+		"42046082240248250000160000000...",
+		"estoque@renataeleandropublicidadeepropaga...",
+		"sistema@bentoesilvanadocessalgadosltda.co...",
+	} {
+		if strings.Contains(text, unexpected) {
+			t.Fatalf("DANFSE layout emitted broken ellipsis %q in %q", unexpected, text)
+		}
+	}
+	words, err := golden.ExtractTextWords(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"estoque@renataeleandropublicidadeepropagandame.com.br",
+		"sistema@bentoesilvanadocessalgadosltda.com.br",
+	} {
+		word, ok := findPDFWord(words, want)
+		if !ok {
+			t.Fatalf("DANFSE positioned text missing word %q", want)
+		}
+		if word.XMin < 290 {
+			t.Fatalf("DANFSE email %q rendered in left grid at xMin=%f, want right-half upstream layout", want, word.XMin)
+		}
+	}
+	expectedWords, err := golden.ExtractTextWords(filepath.Join("..", "tests", "generated", "danfse", "danfse_default_prod.pdf"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, anchor := range []struct {
+		name       string
+		text       string
+		xMax       float64
+		occurrence int
+		tolerance  float64
+	}{
+		{name: "issuer title", text: "EMITENTE", xMax: 60, tolerance: 4},
+		{name: "taker title", text: "TOMADOR", xMax: 60, tolerance: 4},
+		{name: "service title", text: "SERVIÇO", xMax: 60, tolerance: 4},
+		{name: "municipal tax title", text: "TRIBUTAÇÃO", xMax: 60, tolerance: 4},
+		{name: "federal tax title", text: "TRIBUTAÇÃO", xMax: 60, occurrence: 1, tolerance: 4},
+		{name: "total value title", text: "VALOR", xMax: 60, tolerance: 4},
+	} {
+		actualWord, ok := findPDFWordByPosition(words, anchor.text, 0, anchor.xMax, anchor.occurrence)
+		if !ok {
+			t.Fatalf("actual DANFSE anchor %q not found", anchor.name)
+		}
+		expectedWord, ok := findPDFWordByPosition(expectedWords, anchor.text, 0, anchor.xMax, anchor.occurrence)
+		if !ok {
+			t.Fatalf("expected DANFSE anchor %q not found", anchor.name)
+		}
+		if delta := math.Abs(actualWord.YMin - expectedWord.YMin); delta > anchor.tolerance {
+			t.Fatalf("DANFSE anchor %q y drifted by %.2f pt: actual=%f expected=%f", anchor.name, delta, actualWord.YMin, expectedWord.YMin)
 		}
 	}
 }
@@ -248,6 +325,16 @@ func TestFixtureOutputsMatchGoldenShape(t *testing.T) {
 
 func renderFixtureText(t *testing.T, fixture string, config *Config) string {
 	t.Helper()
+	out := renderFixturePDF(t, fixture, config)
+	text, err := golden.ExtractText(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return golden.NormalizeExtractedText(text)
+}
+
+func renderFixturePDF(t *testing.T, fixture string, config *Config) string {
+	t.Helper()
 	xmlContent, err := os.ReadFile(filepath.Join("..", "tests", "fixtures", "danfse", fixture))
 	if err != nil {
 		t.Fatal(err)
@@ -260,9 +347,28 @@ func renderFixtureText(t *testing.T, fixture string, config *Config) string {
 	if err := doc.Output(out); err != nil {
 		t.Fatal(err)
 	}
-	text, err := golden.ExtractText(out)
-	if err != nil {
-		t.Fatal(err)
+	return out
+}
+
+func findPDFWord(words []golden.TextWord, text string) (golden.TextWord, bool) {
+	for _, word := range words {
+		if word.Text == text {
+			return word, true
+		}
 	}
-	return golden.NormalizeExtractedText(text)
+	return golden.TextWord{}, false
+}
+
+func findPDFWordByPosition(words []golden.TextWord, text string, xMin, xMax float64, occurrence int) (golden.TextWord, bool) {
+	seen := 0
+	for _, word := range words {
+		if word.Text != text || word.XMin < xMin || word.XMin > xMax {
+			continue
+		}
+		if seen == occurrence {
+			return word, true
+		}
+		seen++
+	}
+	return golden.TextWord{}, false
 }

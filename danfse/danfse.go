@@ -457,21 +457,15 @@ func draw(pdf *pdfdraw.PDF, data nfseData, config Config) {
 	h := 297 - config.Margins.Top - config.Margins.Bottom
 	pdf.Rect(x, y, w, h, "")
 	drawHeader(pdf, x, y, w, data, config)
-	y += 44
+	y += 39
 	drawIssuer(pdf, x+2, y, w-4, data.Issuer, config)
-	y += 31
+	y += 22
 	drawParty(pdf, x+2, y, w-4, 28, "TOMADOR DO SERVIÇO", data.Taker, config)
 	y += 30
 	drawIntermediary(pdf, x+2, y, w-4, config)
-	y += 6
-	drawBox(pdf, x+2, y, w-4, 27, "SERVIÇO PRESTADO", []field{
-		{"Código de Tributação Nacional", data.ServiceCode},
-		{"Código de Tributação Municipal", data.ServiceMunicipal},
-		{"Local da Prestação", data.ServicePlace},
-		{"País da Prestação", data.ServiceCountry},
-		{"Descrição do Serviço", data.ServiceDesc},
-	}, config)
-	y += 29
+	y -= 2
+	drawServiceProvided(pdf, x+2, y, w-4, data, config)
+	y += 26
 	drawBox(pdf, x+2, y, w-4, 34, "TRIBUTAÇÃO MUNICIPAL", []field{
 		{"Tributação do ISSQN", data.MunicipalTaxes.Taxation},
 		{"País Resultado da Prestação do Serviço", data.MunicipalTaxes.Country},
@@ -490,7 +484,7 @@ func draw(pdf *pdfdraw.PDF, data nfseData, config Config) {
 		{"Retenção do ISSQN", data.MunicipalTaxes.RetentionType},
 		{"ISSQN Apurado", data.MunicipalTaxes.ClearedISSQN},
 	}, config)
-	y += 36
+	y += 34
 	drawBox(pdf, x+2, y, w-4, 20, "TRIBUTAÇÃO FEDERAL", []field{
 		{"IRRF", data.FederalTaxes.IRRF},
 		{"Contribuição Previdenciária - Retida", data.FederalTaxes.SocialSecurityContribution},
@@ -499,7 +493,7 @@ func draw(pdf *pdfdraw.PDF, data nfseData, config Config) {
 		{"PIS - Débito Apuração Própria", data.FederalTaxes.PISDebit},
 		{"COFINS - Débito Apuração Própria", data.FederalTaxes.COFINSDebit},
 	}, config)
-	y += 22
+	y += 19
 	drawBox(pdf, x+2, y, w-4, 20, "VALOR TOTAL DA NFS-E", []field{
 		{"Valor do Serviço", data.ServiceAmount},
 		{"Desconto Condicionado", "-"},
@@ -553,22 +547,26 @@ func drawHeader(pdf *pdfdraw.PDF, x, y, w float64, data nfseData, config Config)
 	if len(nfseLogoPNG) > 0 {
 		pdf.ImageBytes("danfse-logo", nfseLogoPNG, x+2, y+2, 42, 0)
 	}
+	colW := w / 4
+	sectionY := y + 12
 	pdf.SetFont(string(config.FontType), "B", 10)
 	pdf.SetXY(x, y+4)
-	pdf.MultiCell(w, 3, "DANFSe v1.0\nDocumento Auxiliar da NFS-e", "", "C", false)
-	drawQR(pdf, x+w-34, y+2, data.Key)
-	drawBox(pdf, x+2, y+17, w-38, 24, "", []field{
-		{"Chave de Acesso da NFS-e", data.Key},
-		{"Número da NFS-e", data.Number},
-		{"Competência da NFS-e", data.Competence},
-		{"Data e Hora da emissão da NFS-e", strings.TrimSpace(data.ProcessedDate + " " + data.ProcessedTime)},
-		{"Número da DPS", data.DPSNumber},
-		{"Série da DPS", data.DPSSeries},
-		{"Data e Hora da emissão da DPS", strings.TrimSpace(data.DPSEmissionDate + " " + data.DPSEmissionTime)},
-	}, config)
-	pdf.SetFont(string(config.FontType), "", 6)
-	pdf.SetXY(x+w-43, y+32)
-	pdf.MultiCell(38, 2.5, "A autenticidade desta NFS-e pode ser verificada pela leitura deste código QR ou pela consulta da chave de acesso no portal nacional da NFS-e", "", "L", false)
+	pdf.MultiCell(w, 2.5, "DANFSe v1.0\nDocumento Auxiliar da NFS-e", "", "C", false)
+	pdf.Line(x+2, y+13, x+w-2, y+13)
+
+	drawDANFSEField(pdf, x+3, sectionY+2, colW, "Chave de Acesso da NFS-e", data.Key, 7, 8, 0, config)
+	drawDANFSEField(pdf, x+3, sectionY+9, colW, "Número da NFS-e", data.Number, 7, 8, 0, config)
+	drawDANFSEField(pdf, x+colW, sectionY+9, colW, "Competência da NFS-e", data.Competence, 7, 8, 0, config)
+	drawDANFSEField(pdf, x+(colW*2), sectionY+9, colW, "Data e Hora da emissão da NFS-e", strings.TrimSpace(data.ProcessedDate+" "+data.ProcessedTime), 7, 8, 0, config)
+	drawDANFSEField(pdf, x+3, sectionY+16, colW, "Número da DPS", data.DPSNumber, 7, 8, 0, config)
+	drawDANFSEField(pdf, x+colW, sectionY+16, colW, "Série da DPS", data.DPSSeries, 7, 8, 0, config)
+	drawDANFSEField(pdf, x+(colW*2), sectionY+16, colW, "Data e Hora da emissão da DPS", strings.TrimSpace(data.DPSEmissionDate+" "+data.DPSEmissionTime), 7, 8, 0, config)
+
+	drawQR(pdf, 170, 13, data.Key)
+	pdf.SetFont(string(config.FontType), "", 7)
+	pdf.SetXY(x+(colW*3)-2, sectionY+18)
+	pdf.MultiCell(colW, 3, "A autenticidade desta NFS-e pode ser verificada pela leitura deste código QR ou pela consulta da chave de acesso no portal nacional da NFS-e", "", "L", false)
+	pdf.Line(x+2, y+40, x+w-2, y+40)
 }
 
 func drawQR(pdf *pdfdraw.PDF, x, y float64, key string) {
@@ -590,38 +588,91 @@ type field struct {
 }
 
 func drawIssuer(pdf *pdfdraw.PDF, x, y, w float64, p party, config Config) {
-	drawBox(pdf, x, y, w, 36, "EMITENTE DA NFS-e", []field{
-		{"Prestador do Serviço", ""},
-		{"CNPJ / CPF / NIF", p.ID},
-		{"Inscrição Municipal", p.MunicipalRegistration},
-		{"Telefone", p.Phone},
-		{"Nome / Nome Empresarial", p.Name},
-		{"E-mail", p.Email},
-		{"Endereço", p.Address},
-		{"Município", p.City},
-		{"CEP", p.CEP},
-		{"Simples Nacional na Data de Competência", p.SimpleNational},
-		{"Regime de Apuração Tributária pelo SN", p.TaxRegime},
-	}, config)
+	colW := w / 4
+	sectionY := y + 2
+	drawDANFSETitle(pdf, x+1, sectionY, "EMITENTE DA NFS-e", 8, config)
+	drawDANFSEValueOnly(pdf, x+1, sectionY, colW, "Prestador do Serviço", 8, config)
+	drawDANFSEField(pdf, x+colW, sectionY, colW, "CNPJ / CPF / NIF", p.ID, 7, 8, 0, config)
+	drawDANFSEField(pdf, x+(colW*2), sectionY, colW, "Inscrição Municipal", p.MunicipalRegistration, 7, 8, 0, config)
+	drawDANFSEField(pdf, x+(colW*3), sectionY, colW, "Telefone", p.Phone, 7, 8, 0, config)
+	drawDANFSEField(pdf, x+1, sectionY+7, colW, "Nome / Nome Empresarial", p.Name, 7, 8, colW*2, config)
+	drawDANFSEField(pdf, x+(colW*2), sectionY+7, colW, "E-mail", p.Email, 7, 8, colW*2, config)
+	drawDANFSEField(pdf, x+1, sectionY+14, colW, "Endereço", p.Address, 7, 8, colW*2, config)
+	drawDANFSEField(pdf, x+(colW*2), sectionY+14, colW, "Município", p.City, 7, 8, 0, config)
+	drawDANFSEField(pdf, x+(colW*3), sectionY+14, colW, "CEP", p.CEP, 7, 8, 0, config)
+	drawDANFSEField(pdf, x+1, sectionY+21, colW, "Simples Nacional na Data de Competência", p.SimpleNational, 7, 8, 0, config)
+	drawDANFSEField(pdf, x+(colW*2), sectionY+21, colW, "Regime de Apuração Tributária pelo SN", p.TaxRegime, 7, 8, 0, config)
+	pdf.Line(x, y+30, x+w, y+30)
 }
 
 func drawParty(pdf *pdfdraw.PDF, x, y, w, h float64, title string, p party, config Config) {
-	drawBox(pdf, x, y, w, h, title, []field{
-		{"CNPJ / CPF / NIF", p.ID},
-		{"Inscrição Municipal", p.MunicipalRegistration},
-		{"Telefone", p.Phone},
-		{"Nome / Nome Empresarial", p.Name},
-		{"E-mail", p.Email},
-		{"Endereço", p.Address},
-		{"Município", p.City},
-		{"CEP", p.CEP},
-	}, config)
+	colW := w / 4
+	sectionY := y + 9
+	drawDANFSETitle(pdf, x+1, sectionY, title, 9, config)
+	drawDANFSEField(pdf, x+colW, sectionY, colW, "CNPJ / CPF / NIF", p.ID, 7, 8, 0, config)
+	drawDANFSEField(pdf, x+(colW*2), sectionY, colW, "Inscrição Municipal", p.MunicipalRegistration, 7, 8, 0, config)
+	drawDANFSEField(pdf, x+(colW*3), sectionY, colW, "Telefone", p.Phone, 7, 8, 0, config)
+	drawDANFSEField(pdf, x+1, sectionY+6, colW, "Nome / Nome Empresarial", p.Name, 7, 8, colW*2, config)
+	drawDANFSEField(pdf, x+(colW*2), sectionY+6, colW, "E-mail", p.Email, 7, 8, colW*2, config)
+	drawDANFSEField(pdf, x+1, sectionY+13, colW, "Endereço", p.Address, 7, 8, colW*2, config)
+	drawDANFSEField(pdf, x+(colW*2), sectionY+13, colW, "Município", p.City, 7, 8, 0, config)
+	drawDANFSEField(pdf, x+(colW*3), sectionY+13, colW, "CEP", p.CEP, 7, 8, 0, config)
+	pdf.Line(x, y+h, x+w, y+h)
 }
 
 func drawIntermediary(pdf *pdfdraw.PDF, x, y, w float64, config Config) {
 	pdf.SetFont(string(config.FontType), "B", 8)
-	pdf.SetXY(x+1, y+1)
+	pdf.SetXY(x+1, y-2)
 	pdf.CellFormat(w-2, 3, "INTERMEDIÁRIO DO SERVIÇO NÃO IDENTIFICADO NA NFS-e", "", 1, "C", false, 0, "")
+	pdf.Line(x, y+1, x+w, y+1)
+}
+
+func drawServiceProvided(pdf *pdfdraw.PDF, x, y, w float64, data nfseData, config Config) {
+	colW := w / 4
+	sectionY := y + 5
+	drawDANFSETitle(pdf, x+1, sectionY, "SERVIÇO PRESTADO", 9, config)
+	drawDANFSEMultilineField(pdf, x+1, sectionY+4, colW, "Código de Tributação Nacional", data.ServiceCode, colW, config)
+	drawDANFSEField(pdf, x+colW, sectionY+4, colW, "Código de Tributação Municipal", data.ServiceMunicipal, 7, 8, 0, config)
+	drawDANFSEField(pdf, x+(colW*2), sectionY+4, colW, "Local da Prestação", data.ServicePlace, 7, 8, 0, config)
+	drawDANFSEField(pdf, x+(colW*3), sectionY+4, colW, "País da Prestação", data.ServiceCountry, 7, 8, 0, config)
+	drawDANFSEField(pdf, x+1, sectionY+14, colW, "Descrição do Serviço", data.ServiceDesc, 7, 8, w-1, config)
+	pdf.Line(x, y+25, x+w, y+25)
+}
+
+func drawDANFSETitle(pdf *pdfdraw.PDF, x, y float64, text string, size float64, config Config) {
+	pdf.SetFont(string(config.FontType), "B", size)
+	pdf.SetXY(x, y)
+	pdf.CellFormat(0, 3, text, "", 0, "L", false, 0, "")
+}
+
+func drawDANFSEValueOnly(pdf *pdfdraw.PDF, x, y, w float64, value string, size float64, config Config) {
+	pdf.SetFont(string(config.FontType), "", size)
+	pdf.SetXY(x, y)
+	pdf.CellFormat(w, 8, value, "", 0, "L", false, 0, "")
+}
+
+func drawDANFSEField(pdf *pdfdraw.PDF, x, y, w float64, label, value string, labelSize, valueSize, limit float64, config Config) {
+	pdf.SetFont(string(config.FontType), "B", labelSize)
+	pdf.SetXY(x, y)
+	pdf.CellFormat(w, 3, label, "", 0, "L", false, 0, "")
+	pdf.SetFont(string(config.FontType), "", valueSize)
+	pdf.SetXY(x, y)
+	if limit > 0 {
+		value = longFieldPDF(pdf, value, limit)
+	}
+	pdf.CellFormat(w, 8, value, "", 0, "L", false, 0, "")
+}
+
+func drawDANFSEMultilineField(pdf *pdfdraw.PDF, x, y, w float64, label, value string, limit float64, config Config) {
+	pdf.SetFont(string(config.FontType), "B", 7)
+	pdf.SetXY(x, y)
+	pdf.CellFormat(w, 3, label, "", 0, "L", false, 0, "")
+	pdf.SetFont(string(config.FontType), "", 8)
+	pdf.SetXY(x, y+3)
+	if limit > 0 {
+		value = longFieldPDF(pdf, value, limit)
+	}
+	pdf.MultiCell(w, 2.5, value, "", "L", false)
 }
 
 func drawComplementaryInfo(pdf *pdfdraw.PDF, x, y, w float64, value string, config Config) {

@@ -3,6 +3,7 @@ package danfe
 import (
 	"bytes"
 	"fmt"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -271,6 +272,42 @@ func TestHeaderTextMatchesUpstreamContract(t *testing.T) {
 	}
 }
 
+func TestHeaderPositionsTrackGeneratedReference(t *testing.T) {
+	if !golden.PDFTextAvailable() {
+		t.Skip("pdftotext not available")
+	}
+	actual := renderFixturePDF(t, "nfe_test_1.xml", nil)
+	expected := filepath.Join("..", "tests", "generated", "danfe", "danfe_default.pdf")
+	for _, anchor := range []struct {
+		name      string
+		word      string
+		xMin      float64
+		xMax      float64
+		yMin      float64
+		yMax      float64
+		tolerance float64
+	}{
+		{name: "issuer name", word: "Empresa", xMin: 0, xMax: 120, yMin: 60, yMax: 90, tolerance: 8},
+		{name: "issuer address", word: "Avenida", xMin: 40, xMax: 130, yMin: 80, yMax: 120, tolerance: 8},
+		{name: "identity title", word: "DANFE", xMin: 200, xMax: 330, yMin: 60, yMax: 90, tolerance: 4},
+		{name: "identity subtitle", word: "DOCUMENTO", xMin: 220, xMax: 300, yMin: 70, yMax: 100, tolerance: 4},
+		{name: "entry label", word: "0-ENTRADA", xMin: 220, xMax: 300, yMin: 90, yMax: 120, tolerance: 4},
+		{name: "access key label", word: "CHAVE", xMin: 300, xMax: 460, yMin: 80, yMax: 120, tolerance: 4},
+		{name: "access key value", word: "3520", xMin: 330, xMax: 390, yMin: 90, yMax: 120, tolerance: 4},
+		{name: "query text", word: "Consulta", xMin: 300, xMax: 430, yMin: 100, yMax: 140, tolerance: 8},
+		{name: "nature row", word: "NATUREZA", xMin: 0, xMax: 80, yMin: 140, yMax: 180, tolerance: 4},
+	} {
+		actualWord := mustFindPDFWordInBox(t, actual, anchor.word, anchor.xMin, anchor.xMax, anchor.yMin, anchor.yMax)
+		expectedWord := mustFindPDFWordInBox(t, expected, anchor.word, anchor.xMin, anchor.xMax, anchor.yMin, anchor.yMax)
+		if delta := math.Abs(actualWord.XMin - expectedWord.XMin); delta > anchor.tolerance {
+			t.Fatalf("DANFE header anchor %q x drifted by %.2f pt: actual=%f expected=%f", anchor.name, delta, actualWord.XMin, expectedWord.XMin)
+		}
+		if delta := math.Abs(actualWord.YMin - expectedWord.YMin); delta > anchor.tolerance {
+			t.Fatalf("DANFE header anchor %q y drifted by %.2f pt: actual=%f expected=%f", anchor.name, delta, actualWord.YMin, expectedWord.YMin)
+		}
+	}
+}
+
 func TestContinuationPageHeaderMatchesUpstreamContract(t *testing.T) {
 	if !golden.PDFTextAvailable() {
 		t.Skip("pdftotext not available")
@@ -316,6 +353,27 @@ func TestLandscapeMultipageProductSplitMatchesUpstreamContract(t *testing.T) {
 	}
 }
 
+func TestPortraitMultipageProductSplitMatchesUpstreamContract(t *testing.T) {
+	if !golden.PDFTextAvailable() {
+		t.Skip("pdftotext not available")
+	}
+	out := renderFixturePDF(t, "nfe_multi_page_products.xml", nil)
+	page1 := extractPageText(t, out, 1, 1)
+	page2 := extractPageText(t, out, 2, 2)
+	if count := strings.Count(page1, "FURN_9001"); count != 26 {
+		t.Fatalf("portrait first page product rows = %d, want 26 in %q", count, page1)
+	}
+	if count := strings.Count(page2, "FURN_9001"); count != 3 {
+		t.Fatalf("portrait continuation product rows = %d, want 3 in %q", count, page2)
+	}
+	if count := strings.Count(page1, "Este é um produto"); count != 2 {
+		t.Fatalf("portrait first page wrapped rows = %d, want 2 in %q", count, page1)
+	}
+	if count := strings.Count(page2, "Este é um produto"); count != 1 {
+		t.Fatalf("portrait continuation wrapped rows = %d, want 1 in %q", count, page2)
+	}
+}
+
 func TestInvoiceDisplayMatchesUpstreamTextContract(t *testing.T) {
 	if !golden.PDFTextAvailable() {
 		t.Skip("pdftotext not available")
@@ -355,6 +413,37 @@ func TestInvoiceDisplayMatchesUpstreamTextContract(t *testing.T) {
 	}
 }
 
+func TestBillingBlockHeightTracksGeneratedReference(t *testing.T) {
+	if !golden.PDFTextAvailable() {
+		t.Skip("pdftotext not available")
+	}
+	compactMargins := Margins{Top: 2, Right: 2, Bottom: 2, Left: 2}
+	cfg := &Config{
+		Margins:          compactMargins,
+		Logo:             filepath.Join("..", "tests", "fixtures", "logo-engenere.jpg"),
+		ReceiptPosition:  ReceiptPositionBottom,
+		DecimalConfig:    DecimalConfig{PricePrecision: 6, QuantityPrecision: 6},
+		TaxConfiguration: TaxConfigurationICMSST,
+		InvoiceDisplay:   InvoiceDisplayFullDetails,
+		FontType:         FontTypeCourier,
+	}
+	actual := renderFixturePDF(t, "nfe_overload.xml", cfg)
+	expected := filepath.Join("..", "tests", "generated", "danfe", "danfe_overload.pdf")
+	for _, tt := range []struct {
+		word       string
+		xMin, xMax float64
+	}{
+		{word: "FATURA", xMin: 0, xMax: 80},
+		{word: "CÁLCULO", xMin: 0, xMax: 80},
+	} {
+		actualWord := mustFindPDFWordInBox(t, actual, tt.word, tt.xMin, tt.xMax, 0, 500)
+		expectedWord := mustFindPDFWordInBox(t, expected, tt.word, tt.xMin, tt.xMax, 0, 500)
+		if delta := math.Abs(actualWord.YMin - expectedWord.YMin); delta > 4 {
+			t.Fatalf("%s y drifted by %.2f pt: actual=%f expected=%f", tt.word, delta, actualWord.YMin, expectedWord.YMin)
+		}
+	}
+}
+
 func TestTaxAndTransportLabelsMatchUpstreamTextContract(t *testing.T) {
 	if !golden.PDFTextAvailable() {
 		t.Skip("pdftotext not available")
@@ -386,6 +475,73 @@ func TestTaxAndTransportLabelsMatchUpstreamTextContract(t *testing.T) {
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("tax/transport text missing %q in %q", want, text)
+		}
+	}
+}
+
+func TestProductTableVerticalPositionTracksGeneratedReference(t *testing.T) {
+	if !golden.PDFTextAvailable() {
+		t.Skip("pdftotext not available")
+	}
+	actual := renderFixturePDF(t, "nfe_test_1.xml", nil)
+	expected := filepath.Join("..", "tests", "generated", "danfe", "danfe_default.pdf")
+	actualY := productCodeHeaderY(t, actual)
+	expectedY := productCodeHeaderY(t, expected)
+	if delta := math.Abs(actualY - expectedY); delta > 8 {
+		t.Fatalf("product table header y drifted by %.2f pt: actual=%f expected=%f", delta, actualY, expectedY)
+	}
+}
+
+func TestDefaultProductTableLayoutTracksGeneratedReference(t *testing.T) {
+	if !golden.PDFTextAvailable() {
+		t.Skip("pdftotext not available")
+	}
+	actual := renderFixturePDF(t, "nfe_test_1.xml", nil)
+	expected := filepath.Join("..", "tests", "generated", "danfe", "danfe_default.pdf")
+	for _, tt := range []struct {
+		word       string
+		xMin, xMax float64
+		yMin, yMax float64
+	}{
+		{word: "DADOS", xMin: 0, xMax: 60, yMin: 330, yMax: 380},
+		{word: "CÓDIGO", xMin: 0, xMax: 80, yMin: 340, yMax: 380},
+		{word: "FURN_9001", xMin: 0, xMax: 80, yMin: 350, yMax: 390},
+		{word: "cBenef:", xMin: 40, xMax: 120, yMin: 360, yMax: 400},
+	} {
+		actualWord := mustFindPDFWordInBox(t, actual, tt.word, tt.xMin, tt.xMax, tt.yMin, tt.yMax)
+		expectedWord := mustFindPDFWordInBox(t, expected, tt.word, tt.xMin, tt.xMax, tt.yMin, tt.yMax)
+		if delta := math.Abs(actualWord.XMin - expectedWord.XMin); delta > 4 {
+			t.Fatalf("%s x drifted by %.2f pt: actual=%f expected=%f", tt.word, delta, actualWord.XMin, expectedWord.XMin)
+		}
+		if delta := math.Abs(actualWord.YMin - expectedWord.YMin); delta > 4 {
+			t.Fatalf("%s y drifted by %.2f pt: actual=%f expected=%f", tt.word, delta, actualWord.YMin, expectedWord.YMin)
+		}
+	}
+}
+
+func TestDefaultAdditionalDataPositionTracksGeneratedReference(t *testing.T) {
+	if !golden.PDFTextAvailable() {
+		t.Skip("pdftotext not available")
+	}
+	actual := renderFixturePDF(t, "nfe_test_1.xml", nil)
+	expected := filepath.Join("..", "tests", "generated", "danfe", "danfe_default.pdf")
+	for _, tt := range []struct {
+		word       string
+		xMin, xMax float64
+		yMin, yMax float64
+	}{
+		{word: "DADOS", xMin: 0, xMax: 60, yMin: 730, yMax: 790},
+		{word: "INFORMAÇÕES", xMin: 0, xMax: 90, yMin: 740, yMax: 800},
+		{word: "RESERVADO", xMin: 350, xMax: 450, yMin: 740, yMax: 800},
+		{word: "Documento", xMin: 0, xMax: 90, yMin: 760, yMax: 810},
+	} {
+		actualWord := mustFindPDFWordInBox(t, actual, tt.word, tt.xMin, tt.xMax, tt.yMin, tt.yMax)
+		expectedWord := mustFindPDFWordInBox(t, expected, tt.word, tt.xMin, tt.xMax, tt.yMin, tt.yMax)
+		if delta := math.Abs(actualWord.XMin - expectedWord.XMin); delta > 4 {
+			t.Fatalf("%s x drifted by %.2f pt: actual=%f expected=%f", tt.word, delta, actualWord.XMin, expectedWord.XMin)
+		}
+		if delta := math.Abs(actualWord.YMin - expectedWord.YMin); delta > 4 {
+			t.Fatalf("%s y drifted by %.2f pt: actual=%f expected=%f", tt.word, delta, actualWord.YMin, expectedWord.YMin)
 		}
 	}
 }
@@ -511,4 +667,37 @@ func extractPageText(t *testing.T, path string, firstPage, lastPage int) string 
 		t.Fatal(err)
 	}
 	return golden.NormalizeExtractedText(string(output))
+}
+
+func productCodeHeaderY(t *testing.T, path string) float64 {
+	t.Helper()
+	words, err := golden.ExtractTextWords(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	y := -1.0
+	for _, word := range words {
+		if word.Text == "CÓDIGO" && word.XMin < 80 && word.YMin > y {
+			y = word.YMin
+		}
+	}
+	if y < 0 {
+		t.Fatalf("product CÓDIGO header not found in %s", path)
+	}
+	return y
+}
+
+func mustFindPDFWordInBox(t *testing.T, path string, text string, xMin, xMax, yMin, yMax float64) golden.TextWord {
+	t.Helper()
+	words, err := golden.ExtractTextWords(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, word := range words {
+		if word.Text == text && word.XMin >= xMin && word.XMin <= xMax && word.YMin >= yMin && word.YMin <= yMax {
+			return word
+		}
+	}
+	t.Fatalf("word %q not found in %s inside x %.2f..%.2f y %.2f..%.2f", text, path, xMin, xMax, yMin, yMax)
+	return golden.TextWord{}
 }
