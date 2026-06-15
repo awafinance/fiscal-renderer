@@ -1,7 +1,6 @@
 package damdfe
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -12,7 +11,6 @@ import (
 	"github.com/awafinance/fiscal-renderer/internal/fiscalfmt"
 	"github.com/awafinance/fiscal-renderer/internal/images"
 	"github.com/awafinance/fiscal-renderer/internal/pdfdraw"
-	"github.com/awafinance/fiscal-renderer/internal/qrcode"
 	"github.com/awafinance/fiscal-renderer/internal/xmlutil"
 	"github.com/go-pdf/fpdf"
 )
@@ -960,13 +958,7 @@ func drawQR(pdf *pdfdraw.PDF, x, y float64, data string) {
 	if data == "" {
 		return
 	}
-	pngBytes, err := qrcode.PNGWithBorder(data, 25, 3)
-	if err != nil {
-		return
-	}
-	name := "damdfe-qr"
-	pdf.RegisterImageOptionsReader(name, fpdf.ImageOptions{ImageType: "PNG"}, bytes.NewReader(pngBytes))
-	pdf.ImageOptions(name, x, y, 25, 25, false, fpdf.ImageOptions{ImageType: "PNG"}, 0, "")
+	_ = pdf.QRCode(data, x, y, 25, 3)
 }
 
 func drawBarcode(pdf *pdfdraw.PDF, x, y float64, key string) {

@@ -459,22 +459,47 @@ func TestHeaderQRCodePlacementTracksGeneratedReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	re := regexp.MustCompile(`q ([0-9.]+) 0 0 ([0-9.]+) ([0-9.]+) ([0-9.]+) cm /I[0-9a-f]+ Do Q`)
+	re := regexp.MustCompile(`([0-9.]+) ([0-9.]+) ([0-9.]+) -([0-9.]+) re f`)
 	matches := re.FindAllSubmatch(data, -1)
+	foundBackground := false
+	var foundModules int
+	minX, minY := math.MaxFloat64, math.MaxFloat64
+	maxX, maxY := 0.0, 0.0
 	for _, match := range matches {
-		width := mustParsePDFPoint(t, match[1])
-		height := mustParsePDFPoint(t, match[2])
-		if math.Abs(width-height) > 0.1 || width < 100 {
+		x := mustParsePDFPoint(t, match[1])
+		y := mustParsePDFPoint(t, match[2])
+		width := mustParsePDFPoint(t, match[3])
+		height := mustParsePDFPoint(t, match[4])
+		if math.Abs(width-107.72) < 0.2 && math.Abs(height-107.72) < 0.2 && math.Abs(x-456.38) < 0.5 && math.Abs(y-734.17) < 0.5 {
+			foundBackground = true
 			continue
 		}
-		x := mustParsePDFPoint(t, match[3])
-		y := mustParsePDFPoint(t, match[4])
-		if math.Abs(width-107.72) > 0.2 || math.Abs(x-456.38) > 0.5 || math.Abs(y-626.46) > 0.5 {
-			t.Fatalf("DACTE QR transform drifted: width=%f x=%f y=%f", width, x, y)
+		if x <= 456 || x >= 565 || y <= 626 || y >= 735 || width >= 5 || height >= 5 {
+			continue
 		}
-		return
+		foundModules++
+		if x < minX {
+			minX = x
+		}
+		if x+width > maxX {
+			maxX = x + width
+		}
+		if y-height < minY {
+			minY = y - height
+		}
+		if y > maxY {
+			maxY = y
+		}
 	}
-	t.Fatalf("DACTE QR image transform not found in %s", actual)
+	if !foundBackground {
+		t.Fatalf("DACTE QR background transform not found in %s", actual)
+	}
+	if foundModules != 857 {
+		t.Fatalf("DACTE QR vector modules = %d, want 857", foundModules)
+	}
+	if math.Abs(minX-458.88) > 0.5 || math.Abs(maxX-561.59) > 0.5 || math.Abs(minY-628.96) > 0.5 || math.Abs(maxY-731.67) > 0.5 {
+		t.Fatalf("DACTE QR vector bounds drifted: minX=%f maxX=%f minY=%f maxY=%f", minX, maxX, minY, maxY)
+	}
 }
 
 func TestHeaderBarcodePlacementTracksGeneratedReference(t *testing.T) {
@@ -493,7 +518,7 @@ func TestHeaderBarcodePlacementTracksGeneratedReference(t *testing.T) {
 		y := mustParsePDFPoint(t, match[2])
 		width := mustParsePDFPoint(t, match[3])
 		height := mustParsePDFPoint(t, match[4])
-		if x < 190 || x > 460 || y < 650 || y > 710 || width > 10 || height > 40 {
+		if x < 190 || x > 440 || y < 650 || y > 710 || width > 10 || height > 40 {
 			continue
 		}
 		found++

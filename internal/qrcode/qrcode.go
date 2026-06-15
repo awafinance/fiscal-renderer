@@ -14,13 +14,7 @@ func PNG(data string, size int) ([]byte, error) {
 	return goqrcode.Encode(data, goqrcode.Low, size)
 }
 
-func PNGWithBorder(data string, modulePixels, borderModules int) ([]byte, error) {
-	if modulePixels <= 0 {
-		return nil, fmt.Errorf("module pixels must be positive")
-	}
-	if borderModules < 0 {
-		return nil, fmt.Errorf("border modules cannot be negative")
-	}
+func BitmapWithoutBorder(data string) ([][]bool, error) {
 	qr, err := goqrcode.New(data, goqrcode.Low)
 	if err != nil {
 		return nil, err
@@ -29,6 +23,20 @@ func PNGWithBorder(data string, modulePixels, borderModules int) ([]byte, error)
 	bitmap := qr.Bitmap()
 	if len(bitmap) == 0 || len(bitmap[0]) == 0 {
 		return nil, fmt.Errorf("empty QR bitmap")
+	}
+	return bitmap, nil
+}
+
+func PNGWithBorder(data string, modulePixels, borderModules int) ([]byte, error) {
+	if modulePixels <= 0 {
+		return nil, fmt.Errorf("module pixels must be positive")
+	}
+	if borderModules < 0 {
+		return nil, fmt.Errorf("border modules cannot be negative")
+	}
+	bitmap, err := BitmapWithoutBorder(data)
+	if err != nil {
+		return nil, err
 	}
 
 	quiet := borderModules * modulePixels

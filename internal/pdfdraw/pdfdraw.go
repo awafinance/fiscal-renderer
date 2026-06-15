@@ -2,10 +2,12 @@ package pdfdraw
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"strings"
 
 	"github.com/awafinance/fiscal-renderer/internal/images"
+	"github.com/awafinance/fiscal-renderer/internal/qrcode"
 	"github.com/go-pdf/fpdf"
 )
 
@@ -71,6 +73,47 @@ func (p *PDF) ImageBytes(name string, data []byte, x, y, w, h float64) bool {
 	p.RegisterImageOptionsReader(name, fpdf.ImageOptions{ImageType: imageType}, bytes.NewReader(data))
 	p.ImageOptions(name, x, y, w, h, false, fpdf.ImageOptions{ImageType: imageType}, 0, "")
 	return true
+}
+
+func (p *PDF) QRCode(data string, x, y, size float64, borderModules int) error {
+	if data == "" {
+		return nil
+	}
+	if size <= 0 {
+		return fmt.Errorf("QR code size must be positive")
+	}
+	if borderModules < 0 {
+		return fmt.Errorf("QR code border modules cannot be negative")
+	}
+	bitmap, err := qrcode.BitmapWithoutBorder(data)
+	if err != nil {
+		return err
+	}
+	totalModules := len(bitmap) + 2*borderModules
+	if totalModules <= 0 {
+		return fmt.Errorf("empty QR bitmap")
+	}
+	moduleSize := size / float64(totalModules)
+
+	p.SetFillColor(255, 255, 255)
+	p.Rect(x, y, size, size, "F")
+	p.SetFillColor(0, 0, 0)
+	for row, modules := range bitmap {
+		for col, black := range modules {
+			if !black {
+				continue
+			}
+			p.Rect(
+				x+float64(col+borderModules)*moduleSize,
+				y+float64(row+borderModules)*moduleSize,
+				moduleSize,
+				moduleSize,
+				"F",
+			)
+		}
+	}
+	p.SetFillColor(255, 255, 255)
+	return nil
 }
 
 func New(title string, margins Margins) *Document {
