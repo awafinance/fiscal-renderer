@@ -18,6 +18,19 @@ func TestParseFindTextAndAttr(t *testing.T) {
 	}
 }
 
+func TestRawTextPreservesWhitespace(t *testing.T) {
+	root, err := ParseString("<root><qr>\n  https://example.test/qr\n</qr></root>")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := Text(root, "qr"); got != "https://example.test/qr" {
+		t.Fatalf("Text(qr) = %q", got)
+	}
+	if got := RawText(root, "qr"); got != "\n  https://example.test/qr\n" {
+		t.Fatalf("RawText(qr) = %q", got)
+	}
+}
+
 func TestFindAll(t *testing.T) {
 	root, err := ParseString(`<root><det><x>1</x></det><det><x>2</x></det></root>`)
 	if err != nil {

@@ -5,6 +5,8 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -158,6 +160,47 @@ func TestHeaderTitlePositionTracksGeneratedReference(t *testing.T) {
 	}
 }
 
+func TestHeaderBarcodePlacementTracksPythonSVGReference(t *testing.T) {
+	actual := renderFixturePDF(t, "mdf-e_test_1.xml", nil)
+	data, err := os.ReadFile(actual)
+	if err != nil {
+		t.Fatal(err)
+	}
+	re := regexp.MustCompile(`([0-9.]+) ([0-9.]+) ([0-9.]+) -([0-9.]+) re f`)
+	matches := re.FindAllSubmatch(data, -1)
+	var found int
+	minX, minY := math.MaxFloat64, math.MaxFloat64
+	maxX, maxY := 0.0, 0.0
+	for _, match := range matches {
+		x := mustParsePDFPoint(t, match[1])
+		y := mustParsePDFPoint(t, match[2])
+		width := mustParsePDFPoint(t, match[3])
+		height := mustParsePDFPoint(t, match[4])
+		if x < 300 || x > 570 || y < 700 || y > 750 || width > 10 || height > 40 {
+			continue
+		}
+		found++
+		if x < minX {
+			minX = x
+		}
+		if x+width > maxX {
+			maxX = x + width
+		}
+		if y-height < minY {
+			minY = y - height
+		}
+		if y > maxY {
+			maxY = y
+		}
+	}
+	if found != 76 {
+		t.Fatalf("DAMDFE barcode vector bars = %d, want 76", found)
+	}
+	if math.Abs(minX-320.97) > 0.5 || math.Abs(maxX-551.19) > 0.5 || math.Abs(minY-704.56) > 0.5 || math.Abs(maxY-734.98) > 0.5 {
+		t.Fatalf("DAMDFE barcode vector bounds drifted: minX=%f maxX=%f minY=%f maxY=%f", minX, maxX, minY, maxY)
+	}
+}
+
 func TestBodySectionPositionsTrackGeneratedReference(t *testing.T) {
 	if !golden.PDFTextAvailable() {
 		t.Skip("pdftotext not available")
@@ -190,6 +233,88 @@ func TestBodySectionPositionsTrackGeneratedReference(t *testing.T) {
 		}
 		if delta := math.Abs(actualWord.YMin - expectedWord.YMin); delta > 4 {
 			t.Fatalf("%s y drifted by %.2f pt: actual=%f expected=%f", tt.word, delta, actualWord.YMin, expectedWord.YMin)
+		}
+	}
+}
+
+func TestFiscoTitlePositionTracksGeneratedReference(t *testing.T) {
+	if !golden.PDFTextAvailable() {
+		t.Skip("pdftotext not available")
+	}
+	actual := renderFixturePDF(t, "mdf-e_test_1.xml", nil)
+	expected := filepath.Join("..", "tests", "generated", "damdfe", "damdfe_default.pdf")
+	actualWords := mustExtractPDFWords(t, actual)
+	expectedWords := mustExtractPDFWords(t, expected)
+	actualWord := mustFindPDFWordInBox(t, actualWords, "ADICIONAIS", 250, 320, 650, 690)
+	expectedWord := mustFindPDFWordInBox(t, expectedWords, "ADICIONAIS", 250, 320, 650, 690)
+	if delta := math.Abs(actualWord.XMin - expectedWord.XMin); delta > 1 {
+		t.Fatalf("DAMDFE fisco title x drifted by %.2f pt: actual=%f expected=%f", delta, actualWord.XMin, expectedWord.XMin)
+	}
+	if delta := math.Abs(actualWord.YMin - expectedWord.YMin); delta > 1 {
+		t.Fatalf("DAMDFE fisco title y drifted by %.2f pt: actual=%f expected=%f", delta, actualWord.YMin, expectedWord.YMin)
+	}
+}
+
+func TestFiscoInfoStopsBeforeBottomBorderLikeUpstream(t *testing.T) {
+	if !golden.PDFTextAvailable() {
+		t.Skip("pdftotext not available")
+	}
+	actual := renderFixturePDF(t, "mdf-e_test_1.xml", nil)
+	actualWords := mustExtractPDFWords(t, actual)
+	var lineCount int
+	for _, word := range actualWords {
+		if word.Text == "LINHA" && word.XMin < 60 && word.YMin > 790 {
+			lineCount++
+		}
+		if word.Text == "4" && word.XMin < 60 && word.YMin > 820 {
+			t.Fatalf("DAMDFE fisco info overflowed past the Python three-line cutoff at x=%f y=%f", word.XMin, word.YMin)
+		}
+	}
+	if lineCount != 3 {
+		t.Fatalf("DAMDFE fisco info rendered %d bottom LINHA rows, want 3 like upstream", lineCount)
+	}
+}
+
+func TestRodoviarioDriverAndRoutePositionsTrackGeneratedReference(t *testing.T) {
+	if !golden.PDFTextAvailable() {
+		t.Skip("pdftotext not available")
+	}
+	actual := renderFixturePDF(t, "mdf-e_test_1.xml", nil)
+	expected := filepath.Join("..", "tests", "generated", "damdfe", "damdfe_default.pdf")
+	actualWords := mustExtractPDFWords(t, actual)
+	expectedWords := mustExtractPDFWords(t, expected)
+	for _, anchor := range []struct {
+		name      string
+		text      string
+		xMin      float64
+		xMax      float64
+		yMin      float64
+		yMax      float64
+		tolerance float64
+	}{
+		{name: "driver cpf header", text: "CPF", xMin: 280, xMax: 330, yMin: 205, yMax: 225, tolerance: 1.5},
+		{name: "driver name header", text: "CONDUTORES", xMin: 430, xMax: 500, yMin: 215, yMax: 230, tolerance: 1.5},
+		{name: "first driver name", text: "CONDUTOR", xMin: 430, xMax: 500, yMin: 225, yMax: 235, tolerance: 1.5},
+		{name: "voucher supplier label", text: "CNPJ", xMin: 45, xMax: 75, yMin: 270, yMax: 290, tolerance: 1},
+		{name: "voucher responsible label", text: "CPF/CNPJ", xMin: 175, xMax: 220, yMin: 270, yMax: 290, tolerance: 1},
+		{name: "voucher number label", text: "NÚMERO", xMin: 310, xMax: 360, yMin: 270, yMax: 290, tolerance: 1},
+		{name: "voucher amount label", text: "VALE-PEDÁGIO", xMin: 490, xMax: 560, yMin: 270, yMax: 290, tolerance: 1},
+		{name: "route title", text: "PERCURSO", xMin: 240, xMax: 320, yMin: 305, yMax: 325, tolerance: 2},
+		{name: "composition title", text: "INFORMAÇÕES", xMin: 210, xMax: 280, yMin: 335, yMax: 350, tolerance: 1},
+		{name: "left composition municipality header", text: "MUNICÍPIO", xMin: 0, xMax: 60, yMin: 350, yMax: 365, tolerance: 1},
+		{name: "left composition docs header", text: "INFORMAÇÕES", xMin: 95, xMax: 150, yMin: 350, yMax: 365, tolerance: 1},
+		{name: "right composition municipality header", text: "MUNICÍPIO", xMin: 270, xMax: 315, yMin: 350, yMax: 365, tolerance: 1},
+		{name: "right composition docs header", text: "INFORMAÇÕES", xMin: 360, xMax: 420, yMin: 350, yMax: 365, tolerance: 1},
+		{name: "left first document municipality", text: "BRUSQUE", xMin: 0, xMax: 55, yMin: 360, yMax: 370, tolerance: 1},
+		{name: "right first document municipality", text: "BRUSQUE", xMin: 270, xMax: 315, yMin: 360, yMax: 370, tolerance: 1},
+	} {
+		actualWord := mustFindPDFWordInBox(t, actualWords, anchor.text, anchor.xMin, anchor.xMax, anchor.yMin, anchor.yMax)
+		expectedWord := mustFindPDFWordInBox(t, expectedWords, anchor.text, anchor.xMin, anchor.xMax, anchor.yMin, anchor.yMax)
+		if delta := math.Abs(actualWord.XMin - expectedWord.XMin); delta > anchor.tolerance {
+			t.Fatalf("DAMDFE rodoviario anchor %q x drifted by %.2f pt: actual=%f expected=%f", anchor.name, delta, actualWord.XMin, expectedWord.XMin)
+		}
+		if delta := math.Abs(actualWord.YMin - expectedWord.YMin); delta > anchor.tolerance {
+			t.Fatalf("DAMDFE rodoviario anchor %q y drifted by %.2f pt: actual=%f expected=%f", anchor.name, delta, actualWord.YMin, expectedWord.YMin)
 		}
 	}
 }
@@ -239,6 +364,21 @@ func TestInsuranceCNPJUsesRawXMLDigitsLikeUpstream(t *testing.T) {
 	}
 	if strings.Contains(text, "CNPJ: 12.345.678/0001-99") {
 		t.Fatalf("insurance CNPJ should not be formatted in %q", text)
+	}
+}
+
+func TestEmptyVoucherValuesStayBlankLikeUpstream(t *testing.T) {
+	if !golden.PDFTextAvailable() {
+		t.Skip("pdftotext not available")
+	}
+	text := renderFixtureText(t, "mdf-e_test_1.xml", nil)
+	if strings.Contains(text, "R$ 0,00") {
+		t.Fatalf("empty vale-pedagio amount should stay blank like upstream in %q", text)
+	}
+	if strings.Contains(text, "CNPJ DA FORNECEDORA -") ||
+		strings.Contains(text, "CPF/CNPJ DO RESPONSÁVEL -") ||
+		strings.Contains(text, "NÚMERO DO COMPROVANTE -") {
+		t.Fatalf("empty vale-pedagio cells should not render placeholder hyphens in %q", text)
 	}
 }
 
@@ -378,10 +518,7 @@ func renderFixturePDF(t *testing.T, fixture string, config *Config) string {
 
 func mustFindPDFWord(t *testing.T, path string, text string) golden.TextWord {
 	t.Helper()
-	words, err := golden.ExtractTextWords(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	words := mustExtractPDFWords(t, path)
 	for _, word := range words {
 		if word.Text == text {
 			return word
@@ -393,10 +530,7 @@ func mustFindPDFWord(t *testing.T, path string, text string) golden.TextWord {
 
 func mustFindPDFWordInXRange(t *testing.T, path string, text string, xMin, xMax float64) golden.TextWord {
 	t.Helper()
-	words, err := golden.ExtractTextWords(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	words := mustExtractPDFWords(t, path)
 	for _, word := range words {
 		if word.Text == text && word.XMin >= xMin && word.XMin <= xMax {
 			return word
@@ -404,4 +538,33 @@ func mustFindPDFWordInXRange(t *testing.T, path string, text string, xMin, xMax 
 	}
 	t.Fatalf("word %q in x range %.2f..%.2f not found in %s", text, xMin, xMax, path)
 	return golden.TextWord{}
+}
+
+func mustExtractPDFWords(t *testing.T, path string) []golden.TextWord {
+	t.Helper()
+	words, err := golden.ExtractTextWords(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return words
+}
+
+func mustFindPDFWordInBox(t *testing.T, words []golden.TextWord, text string, xMin, xMax, yMin, yMax float64) golden.TextWord {
+	t.Helper()
+	for _, word := range words {
+		if word.Text == text && word.XMin >= xMin && word.XMin <= xMax && word.YMin >= yMin && word.YMin <= yMax {
+			return word
+		}
+	}
+	t.Fatalf("word %q in box x %.2f..%.2f y %.2f..%.2f not found", text, xMin, xMax, yMin, yMax)
+	return golden.TextWord{}
+}
+
+func mustParsePDFPoint(t *testing.T, value []byte) float64 {
+	t.Helper()
+	parsed, err := strconv.ParseFloat(string(value), 64)
+	if err != nil {
+		t.Fatalf("parse PDF point %q: %v", value, err)
+	}
+	return parsed
 }

@@ -83,11 +83,25 @@ func (n *Node) TextContent() string {
 	return strings.TrimSpace(n.Text)
 }
 
+func (n *Node) RawTextContent() string {
+	if n == nil {
+		return ""
+	}
+	return n.Text
+}
+
 func Text(root *Node, local string) string {
 	if root == nil {
 		return ""
 	}
 	return root.Find(local).TextContent()
+}
+
+func RawText(root *Node, local string) string {
+	if root == nil {
+		return ""
+	}
+	return root.Find(local).RawTextContent()
 }
 
 func (n *Node) Attr(local string) string {

@@ -5,6 +5,8 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -121,6 +123,30 @@ func TestPISCOFINSDebitValuesMatchUpstreamTextContract(t *testing.T) {
 	}
 }
 
+func TestHeaderQRCodePlacementTracksBenchmarkReference(t *testing.T) {
+	out := renderFixturePDF(t, "nfse_test_prod.xml", &Config{Margins: Margins{Top: 2, Right: 2, Bottom: 2, Left: 2}})
+	data, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	re := regexp.MustCompile(`q ([0-9.]+) 0 0 ([0-9.]+) ([0-9.]+) ([0-9.]+) cm /I[0-9a-f]+ Do Q`)
+	matches := re.FindAllSubmatch(data, -1)
+	for _, match := range matches {
+		width := mustParsePDFPoint(t, match[1])
+		height := mustParsePDFPoint(t, match[2])
+		if math.Abs(width-height) > 0.1 || width < 50 || width > 60 {
+			continue
+		}
+		x := mustParsePDFPoint(t, match[3])
+		y := mustParsePDFPoint(t, match[4])
+		if math.Abs(width-53.86) > 0.2 || math.Abs(x-492.86) > 0.5 || math.Abs(y-743.33) > 0.5 {
+			t.Fatalf("DANFSE QR transform drifted: width=%f x=%f y=%f", width, x, y)
+		}
+		return
+	}
+	t.Fatalf("DANFSE QR image transform not found in %s", out)
+}
+
 func TestBenchmarkDANFSELongHeaderAndPartyFieldsMatchUpstreamLayout(t *testing.T) {
 	if !golden.PDFTextAvailable() {
 		t.Skip("pdftotext not available")
@@ -169,6 +195,14 @@ func TestBenchmarkDANFSELongHeaderAndPartyFieldsMatchUpstreamLayout(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
+	keyWord := mustFindPDFWordInBox(t, words, "42046082240248250000160000000000099999999999999999", 0, 260, 45, 80)
+	expectedKeyWord := mustFindPDFWordInBox(t, expectedWords, "42046082240248250000160000000000099999999999999999", 0, 260, 45, 80)
+	if delta := math.Abs(keyWord.XMin - expectedKeyWord.XMin); delta > 1 {
+		t.Fatalf("DANFSE access key x drifted by %.2f pt: actual=%f expected=%f", delta, keyWord.XMin, expectedKeyWord.XMin)
+	}
+	if delta := math.Abs(keyWord.YMin - expectedKeyWord.YMin); delta > 1 {
+		t.Fatalf("DANFSE access key y drifted by %.2f pt: actual=%f expected=%f", delta, keyWord.YMin, expectedKeyWord.YMin)
+	}
 	for _, anchor := range []struct {
 		name       string
 		text       string
@@ -193,6 +227,46 @@ func TestBenchmarkDANFSELongHeaderAndPartyFieldsMatchUpstreamLayout(t *testing.T
 		}
 		if delta := math.Abs(actualWord.YMin - expectedWord.YMin); delta > anchor.tolerance {
 			t.Fatalf("DANFSE anchor %q y drifted by %.2f pt: actual=%f expected=%f", anchor.name, delta, actualWord.YMin, expectedWord.YMin)
+		}
+	}
+	for _, anchor := range []struct {
+		name      string
+		text      string
+		xMin      float64
+		xMax      float64
+		yMin      float64
+		yMax      float64
+		tolerance float64
+	}{
+		{name: "pis/cofins total label", text: "PIS/COFINS", xMin: 140, xMax: 210, yMin: 515, yMax: 530, tolerance: 0.5},
+		{name: "net value label", text: "Líquido", xMin: 450, xMax: 500, yMin: 515, yMax: 530, tolerance: 0.5},
+		{name: "net value amount", text: "8.885,0000", xMin: 440, xMax: 500, yMin: 520, yMax: 535, tolerance: 0.5},
+	} {
+		actualWord := mustFindPDFWordInBox(t, words, anchor.text, anchor.xMin, anchor.xMax, anchor.yMin, anchor.yMax)
+		expectedWord := mustFindPDFWordInBox(t, expectedWords, anchor.text, anchor.xMin, anchor.xMax, anchor.yMin, anchor.yMax)
+		if delta := math.Abs(actualWord.XMin - expectedWord.XMin); delta > anchor.tolerance {
+			t.Fatalf("DANFSE total anchor %q x drifted by %.2f pt: actual=%f expected=%f", anchor.name, delta, actualWord.XMin, expectedWord.XMin)
+		}
+		if delta := math.Abs(actualWord.YMin - expectedWord.YMin); delta > anchor.tolerance {
+			t.Fatalf("DANFSE total anchor %q y drifted by %.2f pt: actual=%f expected=%f", anchor.name, delta, actualWord.YMin, expectedWord.YMin)
+		}
+	}
+}
+
+func TestBenchmarkDANFSESectionDividersTrackUpstreamLayout(t *testing.T) {
+	out := renderFixturePDF(t, "nfse_test_prod.xml", nil)
+	data, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := findPDFHorizontalRules(t, data)
+	expectedY := []float64{790.87, 714.33, 632.13, 572.60, 564.09, 501.73, 405.35, 351.50, 291.97, 252.28}
+	if len(lines) != len(expectedY) {
+		t.Fatalf("DANFSE section dividers = %d, want %d: %#v", len(lines), len(expectedY), lines)
+	}
+	for i, line := range lines {
+		if math.Abs(line.X1-19.84) > 0.2 || math.Abs(line.X2-575.43) > 0.2 || math.Abs(line.Y-expectedY[i]) > 0.2 {
+			t.Fatalf("DANFSE section divider %d drifted: got x1=%f x2=%f y=%f, want y=%f", i, line.X1, line.X2, line.Y, expectedY[i])
 		}
 	}
 }
@@ -371,4 +445,48 @@ func findPDFWordByPosition(words []golden.TextWord, text string, xMin, xMax floa
 		seen++
 	}
 	return golden.TextWord{}, false
+}
+
+func mustFindPDFWordInBox(t *testing.T, words []golden.TextWord, text string, xMin, xMax, yMin, yMax float64) golden.TextWord {
+	t.Helper()
+	for _, word := range words {
+		if word.Text == text && word.XMin >= xMin && word.XMin <= xMax && word.YMin >= yMin && word.YMin <= yMax {
+			return word
+		}
+	}
+	t.Fatalf("PDF word %q not found in box x=[%.2f, %.2f] y=[%.2f, %.2f]", text, xMin, xMax, yMin, yMax)
+	return golden.TextWord{}
+}
+
+type pdfHorizontalRule struct {
+	X1 float64
+	X2 float64
+	Y  float64
+}
+
+func findPDFHorizontalRules(t *testing.T, data []byte) []pdfHorizontalRule {
+	t.Helper()
+	re := regexp.MustCompile(`([0-9.]+) ([0-9.]+) m ([0-9.]+) ([0-9.]+) l S`)
+	matches := re.FindAllSubmatch(data, -1)
+	lines := make([]pdfHorizontalRule, 0, len(matches))
+	for _, match := range matches {
+		x1 := mustParsePDFPoint(t, match[1])
+		y1 := mustParsePDFPoint(t, match[2])
+		x2 := mustParsePDFPoint(t, match[3])
+		y2 := mustParsePDFPoint(t, match[4])
+		if math.Abs(y1-y2) > 0.1 || x2-x1 < 100 {
+			continue
+		}
+		lines = append(lines, pdfHorizontalRule{X1: x1, X2: x2, Y: y1})
+	}
+	return lines
+}
+
+func mustParsePDFPoint(t *testing.T, value []byte) float64 {
+	t.Helper()
+	point, err := strconv.ParseFloat(string(value), 64)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return point
 }

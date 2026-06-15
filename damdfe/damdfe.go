@@ -198,7 +198,7 @@ func parseData(root *xmlutil.Node, config Config) mdfeData {
 		Protocol:              xmlutil.Text(protocolNode, "nProt"),
 		ProtocolDate:          protocolDate,
 		ProtocolTime:          protocolTime,
-		QRCode:                xmlutil.Text(infSupl, "qrCodMDFe"),
+		QRCode:                xmlutil.RawText(infSupl, "qrCodMDFe"),
 		Issuer:                parseIssuer(emit, infModal),
 		ModalCode:             modalCode,
 		ModalName:             modalName(modalCode),
@@ -429,15 +429,13 @@ func draw(pdf *pdfdraw.PDF, data mdfeData, config Config) {
 	x := config.Margins.Left
 	y := config.Margins.Top
 	w := 210 - config.Margins.Left - config.Margins.Right
-	h := 297 - config.Margins.Top - config.Margins.Bottom
-	pdf.Rect(x, y, w, h, "")
 	drawHeader(pdf, x, y, w, data, config)
 	bodyW := w - 0.5
 	drawModal(pdf, x, y+45, bodyW, data, config)
 	drawVoucher(pdf, x, y+87.5, bodyW, data, config)
-	drawLinkedDocuments(pdf, x, y+113, bodyW, 21, data.Documents, config)
-	drawInsurance(pdf, x, y+129, bodyW, data, config)
-	drawSupplementaryInfo(pdf, x, y+185, bodyW, 297-config.Margins.Bottom-(y+185), data, config)
+	drawLinkedDocuments(pdf, x, y+118, bodyW, data.Documents, config)
+	drawInsurance(pdf, x, y+130, bodyW, data, config)
+	drawSupplementaryInfo(pdf, x, y+186, bodyW, 297-config.Margins.Bottom-(y+186), data, config)
 }
 
 func drawWatermarks(pdf *pdfdraw.PDF, data mdfeData, config Config) {
@@ -504,13 +502,14 @@ func drawHeader(pdf *pdfdraw.PDF, x, y, w float64, data mdfeData, config Config)
 	), "\n"), "", "L", false)
 	pdf.Line(x+w/2, y, x+w/2, y+88)
 	pdf.SetFont(string(config.FontType), "", 7)
+	pdf.Line(x, y+25, x+w/2, y+25)
 	pdf.SetXY(x, y+25)
 	pdf.MultiCell(w/2, 3, "DAMDFE - Documento Auxiliar do Manifesto de Documentos Fiscais Eletrônicos", "", "C", false)
 
 	drawHeaderRows(pdf, x, y, w, data, config)
 
-	drawQR(pdf, x+135, y+1, data.QRCode)
-	drawBarcode(pdf, x+w/2+6, y+32, data.Key)
+	drawQR(pdf, x+136, y+2, data.QRCode)
+	drawBarcode(pdf, x+w/2+5.75, y+32, data.Key)
 	pdf.SetFont(string(config.FontType), "", 6.5)
 	pdf.SetXY(x+100, y+28)
 	pdf.CellFormat(w/2-8, 3, "CONTROLE DO FISCO", "", 1, "L", false, 0, "")
@@ -623,37 +622,47 @@ func drawModal(pdf *pdfdraw.PDF, x, y, w float64, data mdfeData, config Config) 
 		pdf.SetXY(x+42, y+24)
 		pdf.MultiCell(100, 0, "VEÍCULOS", "", "L", false)
 		for _, offset := range []float64{25, 50, 75} {
-			pdf.Line(x+offset, y+26, x+offset, y+31.5)
+			pdf.Line(x+offset, y+26, x+offset, y+43)
 		}
 		drawBodyField(pdf, config, x, y+26, "PLACA", data.VehiclePlate, 25)
 		drawBodyField(pdf, config, x+25, y+26, "UF", data.VehicleUF, 25)
 		drawBodyField(pdf, config, x+50, y+26, "RNTRC", data.VehicleRNTRC, 25)
 		drawBodyField(pdf, config, x+75, y+26, "RENAVAM", data.VehicleRENAVAM, 25)
 		pdf.SetFont(string(config.FontType), "B", 7)
-		pdf.SetXY(x+125, y+24)
-		pdf.MultiCell(100, 0, "CONDUTORES", "", "L", false)
-		driverY := y + 27
+		pdf.SetXY(w/2+6, y+24)
+		pdf.MultiCell(100, 0, "CONDUTORES", "", "C", false)
+		halfW := w / 2
+		rightX := x + halfW
+		pdf.Line(x, y+29, x+w, y+29)
+		pdf.Line(rightX+halfW/2, y+26, rightX+halfW/2, y+43)
+		pdf.Line(x+w, y+26, x+w, y+43)
+		cpfX := rightX + 0.5
+		driverNameX := rightX + 50.5
+		pdf.SetXY(cpfX, y+26.2)
+		pdf.MultiCell(45, 3, "CPF", "", "L", false)
+		pdf.SetXY(driverNameX, y+26.2)
+		pdf.MultiCell(45, 3, "CONDUTORES", "", "L", false)
+		driverY := y + 29.5
 		for _, driver := range data.Drivers {
-			pdf.SetFont(string(config.FontType), "", 6.5)
-			pdf.SetXY(x+125, driverY)
-			pdf.MultiCell(w-126, 3, strings.TrimSpace(driver.CPF+" "+driver.Name), "", "L", false)
-			driverY += 3
+			pdf.SetFont(string(config.FontType), "", 7)
+			pdf.SetXY(cpfX, driverY)
+			pdf.MultiCell(45, 2.5, driver.CPF, "", "L", false)
+			pdf.SetXY(driverNameX, driverY)
+			pdf.MultiCell(45, 2.5, driver.Name, "", "L", false)
+			driverY += 2.5
 		}
+		pdf.Line(x, y+43, x+w, y+43)
 	case "2":
 		drawBodyFields(pdf, config, x, y+26, w, data.Aereo)
+		pdf.Line(x, y+31.5, x+w, y+31.5)
 	case "3":
 		drawBodyFields(pdf, config, x, y+26, w, append(data.Aquaviario, data.CargoComposition...))
+		pdf.Line(x, y+31.5, x+w, y+31.5)
 	case "4":
 		drawBodyFields(pdf, config, x, y+26, w, data.Ferroviario)
+		pdf.Line(x, y+31.5, x+w, y+31.5)
 	}
-	pdf.Line(x, y+31.5, x+w, y+31.5)
-	pdf.SetFont(string(config.FontType), "B", 7)
-	pdf.SetXY((w-18)/2, y+29.5)
-	pdf.MultiCell(100, 0, "PERCURSO", "", "L", false)
-	pdf.SetFont(string(config.FontType), "", 6.5)
-	pdf.SetXY(x, y+33)
-	pdf.MultiCell(w, 3, data.Route, "", "L", false)
-	pdf.Line(x, y+35.5, x+w, y+35.5)
+	pdf.Line(x, y+60, x+w, y+60)
 }
 
 func drawVoucher(pdf *pdfdraw.PDF, x, y, w float64, data mdfeData, config Config) {
@@ -675,10 +684,42 @@ func drawVoucher(pdf *pdfdraw.PDF, x, y, w float64, data mdfeData, config Config
 		{"VALOR DO VALE-PEDÁGIO", ""},
 	}
 	copy(labels, data.RodoviarioPedagio)
+	titleLineY := y + 4.5
+	labelXs := []float64{x + 12, x + 59, titleLineY + 15, titleLineY + 67}
+	valueXs := []float64{x + 17, x + 66, titleLineY + 21, titleLineY + 75}
 	for i, field := range labels {
-		drawBodyField(pdf, config, x+float64(i)*50, y+4.5, field.Label, optional(field.Value), 50)
+		drawVoucherField(pdf, config, labelXs[i], valueXs[i], titleLineY, field.Label, voucherValue(i, field.Value))
 	}
 	pdf.Line(x, y+8.5, x+w, y+8.5)
+	routeY := y + 21.5
+	pdf.Line(x, routeY, x+w, routeY)
+	pdf.SetFont(string(config.FontType), "B", 7)
+	pdf.SetXY((w-18)/2, routeY-2)
+	pdf.MultiCell(100, 0, "PERCURSO", "", "L", false)
+	pdf.SetFont(string(config.FontType), "", 6.5)
+	pdf.SetXY(x, routeY+1.5)
+	pdf.MultiCell(w, 0, data.Route, "", "L", false)
+	pdf.Line(x, y+25.5, x+w, y+25.5)
+}
+
+func drawVoucherField(pdf *pdfdraw.PDF, config Config, labelX, valueX, y float64, label, value string) {
+	pdf.SetFont(string(config.FontType), "B", 6.5)
+	pdf.SetXY(labelX, y+1)
+	pdf.MultiCell(100, 3, label, "", "L", false)
+	pdf.SetFont(string(config.FontType), "", 6.5)
+	pdf.SetXY(valueX, y+5)
+	pdf.MultiCell(100, 3, value, "", "L", false)
+}
+
+func voucherValue(index int, value string) string {
+	value = strings.TrimSpace(value)
+	if value == "-" {
+		return ""
+	}
+	if index == 3 && (value == "" || value == "R$ 0,00" || value == "R$ 0.00") {
+		return ""
+	}
+	return value
 }
 
 func drawBodyFields(pdf *pdfdraw.PDF, config Config, x, y, w float64, fields []field) {
@@ -699,41 +740,59 @@ func drawBodyField(pdf *pdfdraw.PDF, config Config, x, y float64, label, value s
 	pdf.MultiCell(w, 3, value, "", "L", false)
 }
 
-func drawLinkedDocuments(pdf *pdfdraw.PDF, x, y, w, h float64, docs []linkedDocument, config Config) {
-	pdf.Rect(x, y, w, h, "")
+func drawLinkedDocuments(pdf *pdfdraw.PDF, x, y, w float64, docs []linkedDocument, config Config) {
+	pdf.Rect(x, y, w, 4, "")
 	pdf.SetFont(string(config.FontType), "B", 7)
-	pdf.SetXY(x+1, y+1)
-	pdf.CellFormat(w-2, 4, "INFORMAÇÕES DA COMPOSIÇÃO DA CARGA", "", 1, "C", false, 0, "")
-	pdf.SetFont(string(config.FontType), "B", 5.5)
-	pdf.SetXY(x+1, y+6)
-	pdf.CellFormat(w/2-2, 3, "MUNICÍPIO     INFORMAÇÕES DOS DOCS. FISCAIS VINCULADOS AO MANIFESTO", "", 1, "L", false, 0, "")
-	pdf.SetXY(x+w/2, y+6)
-	pdf.CellFormat(w/2-2, 3, "MUNICÍPIO     INFORMAÇÕES DOS DOCS. FISCAIS VINCULADOS AO MANIFESTO", "", 1, "L", false, 0, "")
-	pdf.SetFont(string(config.FontType), "", 6.3)
-	rowY := y + 9
+	pdf.SetXY((w-50)/2, y-2)
+	pdf.MultiCell(100, 0, "INFORMAÇÕES DA COMPOSIÇÃO DA CARGA", "", "L", false)
+	for _, offset := range []float64{30, 92, 125} {
+		pdf.Line(x+offset, y, x+offset, y+4)
+	}
+	pdf.SetFont(string(config.FontType), "", 5.5)
+	pdf.SetXY(x, y+1)
+	pdf.CellFormat(30, 3, "MUNICÍPIO", "", 0, "L", false, 0, "")
+	pdf.SetXY(x+30, y+1)
+	pdf.CellFormat(62, 3, "INFORMAÇÕES DOS DOCS. FISCAIS VINCULADOS AO MANIFESTO", "", 0, "L", false, 0, "")
+	pdf.SetXY(x+92, y+1)
+	pdf.CellFormat(33, 3, "MUNICÍPIO", "", 0, "L", false, 0, "")
+	pdf.SetXY(x+125, y+1)
+	pdf.CellFormat(w-125, 3, "INFORMAÇÕES DOS DOCS. FISCAIS VINCULADOS AO MANIFESTO", "", 0, "L", false, 0, "")
+	rowY := y + 4
+	rowCount := (len(docs) + 1) / 2
+	if rowCount > 5 {
+		rowCount = 5
+	}
+	if rowCount > 0 {
+		pdf.Rect(x, rowY, w, float64(rowCount)*4, "")
+	}
 	for i, doc := range docs {
 		if i >= 10 {
 			pdf.SetXY(x+1, rowY)
 			pdf.CellFormat(w-2, 3, fmt.Sprintf("... mais %d documento(s)", len(docs)-i), "", 1, "L", false, 0, "")
 			break
 		}
-		colX := x + 1
+		colX := x
+		keyX := x + 30
 		if i%2 == 1 {
-			colX = x + w/2
+			colX = x + 92
+			keyX = x + 125
 		}
 		if i > 0 && i%2 == 0 {
-			rowY += 7
+			rowY += 4
 		}
 		pdf.SetXY(colX, rowY)
-		pdf.MultiCell(w/2-2, 3, fmt.Sprintf("%s  %s", doc.Municipality, doc.Key), "", "L", false)
+		pdf.MultiCell(30, 4, doc.Municipality, "", "L", false)
+		pdf.SetXY(keyX, rowY)
+		pdf.MultiCell(w-keyX+x, 4, doc.Key, "", "L", false)
 	}
 }
 
 func drawInsurance(pdf *pdfdraw.PDF, x, y, w float64, data mdfeData, config Config) {
-	pdf.Rect(x, y, w, 49, "")
+	pdf.Rect(x, y, w, 44, "")
+	pdf.Line(x, y+4, x+w, y+4)
 	pdf.SetFont(string(config.FontType), "B", 7)
-	pdf.SetXY((w-45)/2, y+1)
-	pdf.CellFormat(100, 4, "INFORMAÇÕES SOBRE OS SEGUROS", "", 1, "L", false, 0, "")
+	pdf.SetXY((w-45)/2, y+2)
+	pdf.MultiCell(100, 0, "INFORMAÇÕES SOBRE OS SEGUROS", "", "L", false)
 	pdf.SetFont(string(config.FontType), "", 6)
 	yPos := y + 6
 	for _, seg := range data.Insurance {
@@ -761,10 +820,11 @@ func drawInsurance(pdf *pdfdraw.PDF, x, y, w float64, data mdfeData, config Conf
 		return
 	}
 	ciotY := y + 40
-	pdf.Line(x, ciotY, x+w, ciotY)
+	pdf.Rect(x, ciotY, w, 16, "")
+	pdf.Line(x, ciotY+4, x+w, ciotY+4)
 	pdf.SetFont(string(config.FontType), "B", 7)
-	pdf.SetXY((w-30)/2, ciotY+1)
-	pdf.CellFormat(100, 4, "INFORMAÇÕES DO CIOT", "", 1, "L", false, 0, "")
+	pdf.SetXY((w-30)/2, ciotY+2)
+	pdf.MultiCell(100, 0, "INFORMAÇÕES DO CIOT", "", "L", false)
 	pdf.SetFont(string(config.FontType), "", 6)
 	rowY := ciotY + 5
 	for _, ciot := range data.CIOT {
@@ -817,9 +877,11 @@ func drawSupplementaryInfo(pdf *pdfdraw.PDF, x, y, w, h float64, data mdfeData, 
 		h = complementaryH
 	}
 	pdf.Rect(x, y, w, complementaryH, "")
+	pdf.Line(x, y+4, x+w, y+4)
 	pdf.SetFont(string(config.FontType), "B", 7)
-	pdf.SetXY(x+1, y+1)
-	pdf.CellFormat(w-2, 4, "INFORMAÇÕES COMPLEMENTARES DE INTERESSE DO CONTRIBUINTE", "", 1, "C", false, 0, "")
+	complementaryTitle := "INFORMAÇÕES COMPLEMENTARES DE INTERESSE DO CONTRIBUINTE"
+	pdf.SetXY((w-80)/2, y+2)
+	pdf.MultiCell(100, 0, complementaryTitle, "", "L", false)
 
 	pdf.SetXY(x, y+5)
 	pdf.SetFont(string(config.FontType), "", 6)
@@ -832,15 +894,18 @@ func drawSupplementaryInfo(pdf *pdfdraw.PDF, x, y, w, h float64, data mdfeData, 
 	}
 	pdf.Rect(x, fiscoY, w, fiscoH, "")
 	pdf.Line(x, fiscoY+4, x+w, fiscoY+4)
-	pdf.SetFont(string(config.FontType), "B", 5.5)
-	pdf.SetXY(x+1, fiscoY+1)
-	pdf.CellFormat(w-2, 3, "INFORMAÇÕES ADICIONAIS DE INTERESSE DO FISCO", "", 1, "L", false, 0, "")
+	fiscoTitle := "INFORMAÇÕES ADICIONAIS DE INTERESSE DO FISCO"
+	pdf.SetFont(string(config.FontType), "B", 7)
+	pdf.SetXY(x+(w-pdf.GetStringWidth(pdf.Encode(fiscoTitle)))/2+1.4, fiscoY+2)
+	pdf.MultiCell(100, 0, fiscoTitle, "", "L", false)
 
 	cursorY := fiscoY + 5
 	pdf.SetFont(string(config.FontType), "", 5.5)
 	lineHeight := 3.0
+	maxLines := int((fiscoH - 5) / lineHeight)
+	fiscoLines := splitSupplementaryLinesToFit(pdf, data.FiscoInfo, w-4, maxLines)
 	pdf.SetXY(x+1, cursorY)
-	pdf.MultiCell(w-4, lineHeight, strings.Join(splitSupplementaryLines(data.FiscoInfo), "\n"), "", "L", false)
+	pdf.MultiCell(w-4, lineHeight, strings.Join(fiscoLines, "\n"), "", "L", false)
 }
 
 func splitSupplementaryLines(value string) []string {
@@ -849,6 +914,26 @@ func splitSupplementaryLines(value string) []string {
 		line = strings.TrimSpace(line)
 		if line != "" {
 			lines = append(lines, line)
+		}
+	}
+	return lines
+}
+
+func splitSupplementaryLinesToFit(pdf *pdfdraw.PDF, value string, width float64, maxLines int) []string {
+	if maxLines <= 0 {
+		return nil
+	}
+	var lines []string
+	for _, line := range splitSupplementaryLines(value) {
+		wrapped := pdf.SplitLines([]byte(line), width)
+		if len(wrapped) == 0 {
+			wrapped = [][]byte{{}}
+		}
+		for _, part := range wrapped {
+			lines = append(lines, strings.TrimSpace(string(part)))
+			if len(lines) >= maxLines {
+				return lines
+			}
 		}
 	}
 	return lines
@@ -875,26 +960,37 @@ func drawQR(pdf *pdfdraw.PDF, x, y float64, data string) {
 	if data == "" {
 		return
 	}
-	pngBytes, err := qrcode.PNG(data, 120)
+	pngBytes, err := qrcode.PNGWithBorder(data, 25, 3)
 	if err != nil {
 		return
 	}
 	name := "damdfe-qr"
 	pdf.RegisterImageOptionsReader(name, fpdf.ImageOptions{ImageType: "PNG"}, bytes.NewReader(pngBytes))
-	pdf.ImageOptions(name, x, y, 28, 28, false, fpdf.ImageOptions{ImageType: "PNG"}, 0, "")
+	pdf.ImageOptions(name, x, y, 25, 25, false, fpdf.ImageOptions{ImageType: "PNG"}, 0, "")
 }
 
 func drawBarcode(pdf *pdfdraw.PDF, x, y float64, key string) {
 	if key == "" {
 		return
 	}
-	pngBytes, err := barcode.Code128PNG(key, 430, 85)
+	bars, svgWidthMM, err := barcode.Code128Bars(key, 0.3, 1, 15)
 	if err != nil {
 		return
 	}
-	name := "damdfe-code128-" + key
-	pdf.RegisterImageOptionsReader(name, fpdf.ImageOptions{ImageType: "PNG"}, bytes.NewReader(pngBytes))
-	pdf.ImageOptions(name, x, y, 86, 17, false, fpdf.ImageOptions{ImageType: "PNG"}, 0, "")
+	const svgHeightMM = 23.764
+	const targetW = 86.18
+	const targetH = 17.0
+	pdf.SetFillColor(0, 0, 0)
+	for _, bar := range bars {
+		pdf.Rect(
+			x+bar.X/svgWidthMM*targetW,
+			y+bar.Y/svgHeightMM*targetH,
+			bar.Width/svgWidthMM*targetW,
+			bar.Height/svgHeightMM*targetH,
+			"F",
+		)
+	}
+	pdf.SetFillColor(255, 255, 255)
 }
 
 func emissionTypeName(code string) string {

@@ -206,7 +206,7 @@ func parseData(root *xmlutil.Node, config Config) nfeData {
 		ExitDate:              exitDate,
 		ExitTime:              exitTime,
 		Orientation:           orientation,
-		QRCode:                firstNonEmpty(xmlutil.Text(root.Find("infNFeSupl"), "qrCode"), xmlutil.Text(root.Find("infNFeSupl"), "qrCodNFe")),
+		QRCode:                firstNonEmpty(xmlutil.RawText(root.Find("infNFeSupl"), "qrCode"), xmlutil.RawText(root.Find("infNFeSupl"), "qrCodNFe")),
 		Issuer:                parseParty(emit),
 		Recipient:             parseParty(dest),
 		Pickup:                parseOptionalParty(root.Find("retirada")),
@@ -492,6 +492,13 @@ func headerAdvance(data nfeData) float64 {
 	return 40
 }
 
+func continuationProductYOffset(data nfeData) float64 {
+	if data.Orientation == "L" {
+		return 5
+	}
+	return 1
+}
+
 func recipientAdvance(data nfeData) float64 {
 	if data.Orientation == "L" {
 		return 22
@@ -555,11 +562,12 @@ func draw(pdf *pdfdraw.PDF, data nfeData, config Config, continuation bool) int 
 	}
 	pdf.Rect(x, y, w, h, "")
 	if continuation {
-		drawHeader(pdf, x, y+2, w, data, config, true)
+		drawHeader(pdf, x, y, w, data, config, true)
 		y += headerAdvance(data)
 		if productsNeedContinuation(data.Products, data.Orientation) {
 			start := data.ProductSplitIndex
-			drawProducts(pdf, x, y, w, h-103, data.Products, data.ProductTaxCodeHeader, config, start, len(data.Products))
+			productYOffset := continuationProductYOffset(data)
+			drawProducts(pdf, x, y-productYOffset, w, h-103+productYOffset, data.Products, data.ProductTaxCodeHeader, config, start, len(data.Products))
 			drawAdditionalContinuation(pdf, x, y+h-42, w, 38, data, config)
 		} else {
 			drawAdditionalContinuation(pdf, x, y, w, h-64, data, config)
@@ -571,7 +579,11 @@ func draw(pdf *pdfdraw.PDF, data nfeData, config Config, continuation bool) int 
 		drawReceipt(pdf, x, y, w, 17, data, config)
 		y += 20
 	}
-	drawHeader(pdf, x, y+2, w, data, config, false)
+	headerY := y + 2
+	if data.Orientation != "L" && config.ReceiptPosition == ReceiptPositionTop {
+		headerY = y - 1
+	}
+	drawHeader(pdf, x, headerY, w, data, config, false)
 	y += headerAdvance(data)
 	drawRecipient(pdf, x, y, w, data, config)
 	y += recipientAdvance(data)
@@ -588,10 +600,10 @@ func draw(pdf *pdfdraw.PDF, data nfeData, config Config, continuation bool) int 
 		y += 12
 	}
 	taxHeight, taxAdvance := taxBlockMetrics(data)
-	drawBox(pdf, x, y, w, taxHeight, "CÁLCULO DO IMPOSTO", append(data.Totals, data.Taxes...), config, 6)
+	drawTaxSummary(pdf, x, y, w, taxHeight, data, config)
 	y += taxAdvance
 	shippingHeight, shippingAdvance := shippingBlockMetrics(data)
-	drawBox(pdf, x, y, w, shippingHeight, "TRANSPORTADOR / VOLUMES TRANSPORTADOS", data.Shipping, config, 6)
+	drawShipping(pdf, x, y, w, shippingHeight, data.Shipping, config)
 	y += shippingAdvance
 	remaining := h - (y - config.Margins.Top)
 	if data.Orientation != "L" && config.ReceiptPosition == ReceiptPositionBottom {
@@ -670,19 +682,15 @@ func drawLandscapeReceipt(pdf *pdfdraw.PDF, x, y, w, h float64, data nfeData, co
 }
 
 func drawHeader(pdf *pdfdraw.PDF, x, y, w float64, data nfeData, config Config, continuation bool) {
-	h := 28.0
-	titleY := -2.0
-	entryY := 9.4
-	invoiceY := 18.2
-	barcodeY := 1.5
-	keyY := 8.5
-	queryY := 15.5
+	h := 31.0
+	entryY := 12.4
+	invoiceY := 19.65
+	keyY := 11.5
+	queryY := 18.5
 	if data.Orientation == "L" {
 		h = 29
-		titleY = 2
 		entryY = 13
 		invoiceY = 18
-		barcodeY = 1.5
 		keyY = 12
 		queryY = 21
 	}
@@ -702,11 +710,11 @@ func drawHeader(pdf *pdfdraw.PDF, x, y, w float64, data nfeData, config Config, 
 			pdf.ImageOptions(config.Logo, x+2, y+10, 30, 0, false, fpdf.ImageOptions{ImageType: imageType}, 0, "")
 		}
 	}
-	issuerNameY := y - 1.9
-	issuerAddressY := y + 10
+	issuerNameY := y + 1.1
+	issuerAddressY := y + 13
 	if hasLogo {
-		issuerNameY = y + 1
-		issuerAddressY = y + 12
+		issuerNameY = y + 4
+		issuerAddressY = y + 15
 	}
 	pdf.SetFont(string(config.FontType), "B", fontSize(config, 12))
 	pdf.SetXY(x, issuerNameY)
@@ -721,41 +729,41 @@ func drawHeader(pdf *pdfdraw.PDF, x, y, w float64, data nfeData, config Config, 
 	pdf.SetXY(addressX, issuerAddressY)
 	pdf.MultiCell(addressW, 3, issuerHeaderAddress(data.Issuer), "", "C", false)
 	pdf.Rect(x+emitW, y, idW, h, "")
-	title := "DANFE"
-	if continuation {
-		title = "DANFE\nCONTINUAÇÃO"
-	}
-	if continuation {
-		pdf.SetFont(string(config.FontType), "B", fontSize(config, 10))
-		pdf.SetXY(x+emitW, y+titleY)
-		pdf.MultiCell(idW, 3.2, title, "", "C", false)
-	} else {
-		pdf.SetFont(string(config.FontType), "B", fontSize(config, 12))
-		pdf.SetXY(x+emitW, y-3)
-		pdf.CellFormat(idW, 4, "DANFE", "", 2, "C", false, 0, "")
-	}
+	pdf.SetFont(string(config.FontType), "B", fontSize(config, 12))
+	pdf.SetXY(x+emitW, y)
+	pdf.CellFormat(idW, 4, "DANFE", "", 2, "C", false, 0, "")
 	pdf.SetFont(string(config.FontType), "", fontSize(config, 7))
-	pdf.SetXY(x+emitW, y+0.4)
+	pdf.SetXY(x+emitW, y+3.4)
 	pdf.CellFormat(idW, 3, "DOCUMENTO AUXILIAR", "", 2, "C", false, 0, "")
 	pdf.CellFormat(idW, 3, "DA NOTA FISCAL", "", 2, "C", false, 0, "")
 	pdf.CellFormat(idW, 3, "ELETRÔNICA", "", 2, "C", false, 0, "")
 	pdf.SetFont(string(config.FontType), "", fontSize(config, 6))
 	pdf.SetXY(x+emitW+1, y+entryY)
 	pdf.MultiCell(idW-2, 3, "0-ENTRADA\n1-SAÍDA", "", "L", false)
-	pdf.SetFont(string(config.FontType), "B", fontSize(config, 7))
+	pdf.Rect(x+emitW+26, y+entryY, 5, 5, "")
+	pdf.SetFont(string(config.FontType), "B", fontSize(config, 10))
+	pdf.SetXY(x+emitW+26, y+entryY)
+	pdf.CellFormat(5, 5, data.NFTypeCode, "", 0, "C", false, 0, "")
+	pdf.SetFont(string(config.FontType), "B", fontSize(config, 10))
 	pdf.SetXY(x+emitW+1, y+invoiceY)
-	pdf.MultiCell(idW-2, 3, data.NFTypeCode+"\nNº "+formatInvoiceNumber(data.Number)+"\nSÉRIE "+data.Series+"\nFOLHA "+danfePageLabel(pdf, data), "", "C", false)
-	pdf.Rect(x+emitW+idW, y, codeW, h, "")
-	drawBarcode(pdf, x+emitW+idW+4, y+barcodeY, codeW-8, data.Key, data.BarcodePNG)
+	pdf.CellFormat(idW-2, 4.4, "Nº "+formatInvoiceNumber(data.Number), "", 2, "L", false, 0, "")
+	pdf.SetFont(string(config.FontType), "B", fontSize(config, 8))
+	pdf.CellFormat(idW-2, 3, "SÉRIE "+data.Series, "", 2, "L", false, 0, "")
+	pdf.CellFormat(idW-2, 3, "FOLHA "+danfePageLabel(pdf, data), "", 0, "L", false, 0, "")
+	codeX := x + emitW + idW
+	pdf.Rect(codeX, y, codeW, 10, "")
+	drawBarcode(pdf, codeX+0.5, y+0.5, codeW, 8.5, data.Key, data.BarcodePNG)
+	pdf.Rect(codeX, y+10, codeW, 6, "")
+	pdf.Rect(codeX, y+16, codeW, h-16, "")
 	pdf.SetFont(string(config.FontType), "", fontSize(config, 5))
-	pdf.SetXY(x+emitW+idW+1, y+keyY-0.8)
+	pdf.SetXY(codeX, y+keyY-1.5)
 	pdf.CellFormat(codeW-2, 2.8, "CHAVE DE ACESSO", "", 2, "L", false, 0, "")
 	pdf.SetFont(string(config.FontType), "B", fontSize(config, 7))
-	pdf.SetXY(x+emitW+idW, y+keyY+2.0)
+	pdf.SetXY(codeX, y+keyY+1.3)
 	pdf.MultiCell(codeW, 3, strings.Join(fiscalfmt.Chunks(data.Key, 4), " "), "", "C", false)
-	pdf.SetFont(string(config.FontType), "", fontSize(config, 5.8))
-	pdf.SetXY(x+emitW+idW+2, y+queryY)
-	pdf.MultiCell(codeW-4, 3, "Consulta de autenticidade no portal nacional da NF-e www.nfe.fazenda.gov.br/portal ou no site da Sefaz autorizadora", "", "C", false)
+	pdf.SetFont(string(config.FontType), "", fontSize(config, 10))
+	pdf.SetXY(codeX+2, y+queryY-0.24)
+	pdf.MultiCell(codeW-4, 3.53, "Consulta de autenticidade no portal nacional da NF-e\nwww.nfe.fazenda.gov.br/portal ou no site da Sefaz\nautorizadora", "", "C", false)
 	rowsY := y + h
 	drawDANFEHeaderField(pdf, x, rowsY, emitW+idW, 6, "NATUREZA DA OPERAÇÃO", data.Nature, "", config)
 	drawDANFEHeaderField(pdf, x+emitW+idW, rowsY, codeW, 6, "PROTOCOLO DE AUTORIZAÇÃO DE USO", strings.TrimSpace(data.Protocol+" - "+data.ProtocolDate+" "+data.ProtocolTime), "protocolo", config)
@@ -787,25 +795,35 @@ func drawRecipient(pdf *pdfdraw.PDF, x, y, w float64, data nfeData, config Confi
 	if data.EnvironmentCode != "1" {
 		name = "NF-E EMITIDA EM AMBIENTE DE HOMOLOGACAO - SEM VALOR FISCAL"
 	}
-	fields := []field{
-		{"NOME / RAZÃO SOCIAL", name},
-		{"CNPJ / CPF", data.Recipient.Doc},
-		{"DATA DA EMISSÃO", data.EmissionDate},
-		{"ENDEREÇO", data.Recipient.Address},
-		{"BAIRRO / DISTRITO", data.Recipient.District},
-		{"CEP", data.Recipient.CEP},
-		{"DATA ENTRADA / SAÍDA", data.ExitDate},
-		{"MUNICÍPIO", data.Recipient.City},
-		{"FONE / FAX", data.Recipient.Phone},
-		{"UF", data.Recipient.UF},
-		{"INSCRIÇÃO ESTADUAL", data.Recipient.IE},
-		{"HORA ENTRADA / SAÍDA", data.ExitTime},
-	}
-	height := 24.0
-	if data.Orientation == "L" {
-		height = 21
-	}
-	drawBox(pdf, x, y, w, height, "DESTINATÁRIO / REMETENTE", fields, config, 4)
+	drawDANFEBlockTitleAt(pdf, x, y+1, w, "DESTINATÁRIO / REMETENTE", config)
+
+	fieldY := y + 5
+	nameW := w - 35 - 30
+	drawDANFEBasicField(pdf, x, fieldY, nameW, 6, "NOME / RAZÃO SOCIAL", name, "", config)
+	drawDANFEBasicField(pdf, x+nameW, fieldY, 35, 6, "CNPJ / CPF", data.Recipient.Doc, "", config)
+	drawDANFEBasicField(pdf, x+nameW+35, fieldY, 30, 6, "DATA DA EMISSÃO", data.EmissionDate, "", config)
+
+	row2Y := fieldY + 6
+	bairroW := 50.0
+	cepW := 25.0
+	exitDateW := 30.0
+	addressW := w - bairroW - cepW - exitDateW
+	drawDANFEBasicField(pdf, x, row2Y, addressW, 6, "ENDEREÇO", fiscalfmt.LimitText(data.Recipient.Address, maxChars(addressW)), "", config)
+	drawDANFEBasicField(pdf, x+addressW, row2Y, bairroW, 6, "BAIRRO / DISTRITO", data.Recipient.District, "", config)
+	drawDANFEBasicField(pdf, x+addressW+bairroW, row2Y, cepW, 6, "CEP", data.Recipient.CEP, "", config)
+	drawDANFEBasicField(pdf, x+addressW+bairroW+cepW, row2Y, exitDateW, 6, "DATA DA ENTRADA / SAÍDA", data.ExitDate, "", config)
+
+	row3Y := fieldY + 12
+	phoneW := 40.0
+	ufW := 10.0
+	ieW := 50.0
+	exitTimeW := 30.0
+	cityW := w - phoneW - ufW - ieW - exitTimeW
+	drawDANFEBasicField(pdf, x, row3Y, cityW, 6, "MUNICÍPIO", data.Recipient.City, "", config)
+	drawDANFEBasicField(pdf, x+cityW, row3Y, phoneW, 6, "FONE / FAX", data.Recipient.Phone, "", config)
+	drawDANFEBasicField(pdf, x+cityW+phoneW, row3Y, ufW, 6, "UF", data.Recipient.UF, "", config)
+	drawDANFEBasicField(pdf, x+cityW+phoneW+ufW, row3Y, ieW, 6, "INSCRIÇÃO ESTADUAL", data.Recipient.IE, "", config)
+	drawDANFEBasicField(pdf, x+cityW+phoneW+ufW+ieW, row3Y, exitTimeW, 6, "HORA DE ENTRADA / SAÍDA", data.ExitTime, "", config)
 }
 
 const locationBlockHeight = 21.0
@@ -856,39 +874,212 @@ func drawLocationRow(pdf *pdfdraw.PDF, x, y float64, fields []locationField, con
 }
 
 func drawInvoices(pdf *pdfdraw.PDF, x, y, w, h float64, bill *billing, invoices []invoice, config Config) {
-	pdf.Rect(x, y, w, h, "")
-	pdf.SetFont(string(config.FontType), "B", fontSize(config, 6.2))
-	pdf.SetXY(x, y+1)
-	pdf.CellFormat(w-2, 3, "FATURA / DUPLICATAS", "", 1, "L", false, 0, "")
+	drawDANFEBlockTitle(pdf, x, y, w, "FATURA / DUPLICATAS", config)
 	nextY := y + 4
 	if config.InvoiceDisplay == InvoiceDisplayFullDetails && bill != nil {
-		fields := []field{
-			{Label: "NÚMERO", Value: bill.Number},
-			{Label: "VALOR ORIGINAL", Value: bill.OriginalValue},
-			{Label: "VALOR DO DESCONTO", Value: bill.DiscountValue},
-			{Label: "VALOR LÍQUIDO", Value: bill.NetValue},
-		}
-		drawBox(pdf, x, nextY, w, 5, "", fields, config, 4)
-		nextY += 5
+		colW := w / 4
+		drawDANFEBasicField(pdf, x, nextY, colW, 6, "NÚMERO", bill.Number, "", config)
+		drawDANFEBasicField(pdf, x+colW, nextY, colW, 6, "VALOR ORIGINAL", bill.OriginalValue, "number", config)
+		drawDANFEBasicField(pdf, x+(colW*2), nextY, colW, 6, "VALOR DO DESCONTO", bill.DiscountValue, "number", config)
+		drawDANFEBasicField(pdf, x+(colW*3), nextY, w-(colW*3), 6, "VALOR LÍQUIDO", bill.NetValue, "number", config)
+		nextY += 6
 	}
 	if len(invoices) == 0 {
 		return
 	}
-	cols := minInt(len(invoices), 6)
-	colW := w / float64(cols)
 	pdf.SetFont(string(config.FontType), "", fontSize(config, 5.8))
-	for i, inv := range invoices {
-		if i >= 6 {
-			break
-		}
-		pdf.Rect(x+float64(i)*colW, nextY, colW, 3, "")
-		pdf.SetXY(x+float64(i)*colW+1, nextY+0.2)
-		pdf.CellFormat(colW-2, 2.5, strings.Join(nonEmpty(inv.Number, inv.Due, inv.Value), "  "), "", 0, "L", false, 0, "")
+	dupTexts := make([]string, 0, len(invoices))
+	maxWidth := 0.0
+	for _, inv := range invoices {
+		text := strings.Join(nonEmpty(inv.Number, inv.Due, inv.Value), "  ")
+		dupTexts = append(dupTexts, text)
+		maxWidth = maxFloat(maxWidth, pdf.GetStringWidth(pdf.Encode(text))+2)
+	}
+	if maxWidth <= 0 {
+		return
+	}
+	cols := int(w / maxWidth)
+	if cols < 1 {
+		cols = 1
+	}
+	colW := w / float64(cols)
+	for i, dupText := range dupTexts {
+		row := i / cols
+		col := i % cols
+		cellX := x + float64(col)*colW
+		cellY := nextY + float64(row)*3
+		pdf.Rect(cellX, cellY, colW, 3, "")
+		pdf.SetXY(cellX, cellY+danfeFieldTextYOffset(config))
+		pdf.CellFormat(colW, 3, dupText, "", 0, "L", false, 0, "")
 	}
 }
 
-func drawProducts(pdf *pdfdraw.PDF, x, y, w, h float64, products []product, taxCodeHeader string, config Config, start, limit int) int {
+func drawTaxSummary(pdf *pdfdraw.PDF, x, y, w, h float64, data nfeData, config Config) {
+	drawDANFEBlockTitle(pdf, x, y, w, "CÁLCULO DO IMPOSTO", config)
+	row1, row2 := taxSummaryRows(data)
+	drawDANFEFieldRow(pdf, x, y+4, w, 6, row1, config)
+	drawDANFEFieldRow(pdf, x, y+10, w, 6, row2, config)
+}
+
+func taxSummaryRows(data nfeData) ([]field, []field) {
+	row1 := append([]field(nil), data.Totals[:minInt(6, len(data.Totals))]...)
+	row2 := []field{}
+	if len(data.Totals) > 6 {
+		row2 = append(row2, data.Totals[6:minInt(12, len(data.Totals))]...)
+	}
+	if len(data.Taxes) > 0 {
+		for _, tax := range data.Taxes {
+			switch tax.Label {
+			case "VALOR DO PIS":
+				row1 = insertBeforeLast(row1, tax)
+			case "VALOR DO COFINS":
+				row2 = insertBeforeLast(row2, tax)
+			default:
+				row2 = insertBeforeLast(row2, tax)
+			}
+		}
+	}
+	return row1, row2
+}
+
+func drawShipping(pdf *pdfdraw.PDF, x, y, w, h float64, fields []field, config Config) {
+	drawDANFEBlockTitle(pdf, x, y+1, w, "TRANSPORTADOR / VOLUMES TRANSPORTADOS", config)
+
+	row1 := []field{
+		{Label: "NOME / RAZÃO SOCIAL", Value: shippingValue(fields, 0)},
+		{Label: "FRETE POR CONTA", Value: shippingValue(fields, 1)},
+		{Label: "CÓDIGO ANTT", Value: shippingValue(fields, 2)},
+		{Label: "PLACA DO VEÍCULO", Value: shippingValue(fields, 3)},
+		{Label: "UF", Value: shippingValue(fields, 4)},
+		{Label: "CNPJ / CPF", Value: shippingValue(fields, 5)},
+	}
+	drawDANFEFieldRowWithWidths(pdf, x, y+5, []float64{w - 28 - 18 - 23 - 8 - 30, 28, 18, 23, 8, 30}, 6, row1, config)
+
+	municipalityW := 69.0
+	ufW := 8.0
+	ieW := 30.0
+	row2 := []field{
+		{Label: "ENDEREÇO", Value: shippingValue(fields, 6)},
+		{Label: "MUNICÍPIO", Value: shippingValue(fields, 7)},
+		{Label: "UF", Value: shippingValue(fields, 8)},
+		{Label: "INSCRIÇÃO ESTADUAL", Value: shippingValue(fields, 9)},
+	}
+	drawDANFEFieldRowWithWidths(pdf, x, y+11, []float64{w - municipalityW - ufW - ieW, municipalityW, ufW, ieW}, 6, row2, config)
+
+	remainingW := w - 25 - 30 - 30 - 45
+	weightW := remainingW / 2
+	row3 := []field{
+		{Label: "QUANTIDADE", Value: shippingValue(fields, 10)},
+		{Label: "ESPÉCIE", Value: shippingValue(fields, 11)},
+		{Label: "MARCA", Value: shippingValue(fields, 12)},
+		{Label: "NUMERAÇÃO", Value: shippingValue(fields, 13)},
+		{Label: "PESO BRUTO", Value: shippingValue(fields, 14)},
+		{Label: "PESO LÍQUIDO", Value: shippingValue(fields, 15)},
+	}
+	drawDANFEFieldRowWithWidths(pdf, x, y+17, []float64{25, 30, 30, 45, weightW, w - 25 - 30 - 30 - 45 - weightW}, 6, row3, config)
+}
+
+func shippingValue(fields []field, index int) string {
+	if index < 0 || index >= len(fields) {
+		return ""
+	}
+	return fields[index].Value
+}
+
+func drawDANFEFieldRowWithWidths(pdf *pdfdraw.PDF, x, y float64, widths []float64, h float64, fields []field, config Config) {
+	cursorX := x
+	for i, field := range fields {
+		if i >= len(widths) {
+			return
+		}
+		value := fiscalfmt.LimitText(optional(field.Value), maxChars(widths[i]-2))
+		drawDANFEBasicField(pdf, cursorX, y, widths[i], h, field.Label, value, "", config)
+		cursorX += widths[i]
+	}
+}
+
+func drawDANFEFieldRow(pdf *pdfdraw.PDF, x, y, w, h float64, fields []field, config Config) {
+	widths := danfeFieldRowWidths(w, len(fields))
+	cursorX := x
+	for i, field := range fields {
+		value := strings.TrimSpace(strings.TrimPrefix(field.Value, "R$"))
+		drawDANFEBasicField(pdf, cursorX, y, widths[i], h, field.Label, value, "number", config)
+		cursorX += widths[i]
+	}
+}
+
+func danfeFieldRowWidths(w float64, count int) []float64 {
+	if count <= 0 {
+		return nil
+	}
+	widths := make([]float64, count)
+	fixedCount := count - 1
+	if fixedCount < 0 {
+		fixedCount = 0
+	}
+	fixed := float64(fixedCount) * 30
+	remainder := w - fixed
+	if remainder <= 0 {
+		return scaleWidths(makeFilledWidths(count, 30), w)
+	}
+	for i := 0; i < fixedCount; i++ {
+		widths[i] = 30
+	}
+	widths[count-1] = remainder
+	return widths
+}
+
+func makeFilledWidths(count int, width float64) []float64 {
+	widths := make([]float64, count)
+	for i := range widths {
+		widths[i] = width
+	}
+	return widths
+}
+
+func insertBeforeLast(fields []field, extra field) []field {
+	if len(fields) == 0 {
+		return []field{extra}
+	}
+	out := make([]field, 0, len(fields)+1)
+	out = append(out, fields[:len(fields)-1]...)
+	out = append(out, extra)
+	out = append(out, fields[len(fields)-1])
+	return out
+}
+
+func drawDANFEBlockTitle(pdf *pdfdraw.PDF, x, y, w float64, title string, config Config) {
+	drawDANFEBlockTitleAt(pdf, x, y, w, title, config)
+}
+
+func drawDANFEBlockTitleAt(pdf *pdfdraw.PDF, x, y, w float64, title string, config Config) {
+	pdf.SetFont(string(config.FontType), "B", fontSize(config, 6))
+	pdf.SetXY(x, y+1+danfeFieldTextYOffset(config))
+	pdf.CellFormat(w, 3, title, "", 1, "L", false, 0, "")
+}
+
+func drawDANFEBasicField(pdf *pdfdraw.PDF, x, y, w, h float64, label, value, fieldType string, config Config) {
 	pdf.Rect(x, y, w, h, "")
+	textY := y + danfeFieldTextYOffset(config)
+	pdf.SetXY(x, textY)
+	pdf.SetFont(string(config.FontType), "", fontSize(config, 5))
+	pdf.CellFormat(w, 2.8, label, "", 2, "L", false, 0, "")
+	pdf.SetFont(string(config.FontType), "", fontSize(config, 7))
+	align := "L"
+	if fieldType == "number" {
+		align = "R"
+	}
+	pdf.MultiCell(w, 3, optional(value), "", align, false)
+}
+
+func danfeFieldTextYOffset(config Config) float64 {
+	if config.FontType == FontTypeCourier {
+		return 1
+	}
+	return 0
+}
+
+func drawProducts(pdf *pdfdraw.PDF, x, y, w, h float64, products []product, taxCodeHeader string, config Config, start, limit int) int {
 	pdf.SetFont(string(config.FontType), "B", fontSize(config, 6.2))
 	pdf.SetXY(x, y+4)
 	pdf.CellFormat(w-2, 3, "DADOS DO PRODUTO / SERVIÇO", "", 1, "L", false, 0, "")
@@ -967,25 +1158,26 @@ func drawAdditional(pdf *pdfdraw.PDF, x, y, w, h float64, title string, data nfe
 	if h < 10 {
 		return
 	}
-	pdf.Rect(x, y, w, h, "")
+	pdf.Rect(x, y, w, 1, "")
 	pdf.SetFont(string(config.FontType), "B", fontSize(config, 6.2))
 	pdf.SetXY(x, y+1)
-	pdf.CellFormat(w-2, 3, title, "", 1, "L", false, 0, "")
+	pdf.CellFormat(w, 3, title, "", 1, "L", false, 0, "")
 	reservedW := 70.0
 	infoW := w - reservedW
 	if infoW < w*0.5 {
 		infoW = w
 		reservedW = 0
 	}
-	pdf.Line(x, y+4, x+w, y+4)
+	fieldY := y + 4
+	pdf.Rect(x, fieldY, infoW, h, "")
 	if reservedW > 0 {
-		pdf.Line(x+infoW, y+4, x+infoW, y+h)
+		pdf.Rect(x+infoW, fieldY, reservedW, h, "")
 	}
 	pdf.SetFont(string(config.FontType), "", fontSize(config, 5))
-	pdf.SetXY(x, y+4)
+	pdf.SetXY(x, fieldY)
 	pdf.CellFormat(infoW-2, 3, "INFORMAÇÕES COMPLEMENTARES", "", 0, "L", false, 0, "")
 	if reservedW > 0 {
-		pdf.SetXY(x+infoW, y+4)
+		pdf.SetXY(x+infoW, fieldY)
 		pdf.CellFormat(reservedW-2, 3, "RESERVADO AO FISCO", "", 0, "L", false, 0, "")
 	}
 	pdf.SetFont(string(config.FontType), "", fontSize(config, 5.8))
@@ -993,7 +1185,7 @@ func drawAdditional(pdf *pdfdraw.PDF, x, y, w, h float64, title string, data nfe
 	if text == "" {
 		text = data.FiscoInfo
 	}
-	pdf.SetXY(x+1, y+7)
+	pdf.SetXY(x+1, fieldY+3)
 	pdf.MultiCell(infoW-2, 2.7, text, "", "L", false)
 }
 
@@ -1068,13 +1260,13 @@ func drawBox(pdf *pdfdraw.PDF, x, y, w, h float64, title string, fields []field,
 	}
 }
 
-func drawBarcode(pdf *pdfdraw.PDF, x, y, w float64, key string, pngBytes []byte) {
+func drawBarcode(pdf *pdfdraw.PDF, x, y, w, h float64, key string, pngBytes []byte) {
 	if key == "" || len(pngBytes) == 0 {
 		return
 	}
 	name := "danfe-code128-" + key
 	pdf.RegisterImageOptionsReader(name, fpdf.ImageOptions{ImageType: "PNG"}, bytes.NewReader(pngBytes))
-	pdf.ImageOptions(name, x, y, w, 10, false, fpdf.ImageOptions{ImageType: "PNG"}, 0, "")
+	pdf.ImageOptions(name, x, y, w, h, false, fpdf.ImageOptions{ImageType: "PNG"}, 0, "")
 }
 
 func drawFooterStamp(pdf *pdfdraw.PDF, config Config) {

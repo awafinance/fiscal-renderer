@@ -323,6 +323,7 @@ func TestPartyAndCargoGridPositionsTrackGeneratedReference(t *testing.T) {
 		{name: "expeditor label", text: "EXPEDIDOR", xMin: 0, xMax: 80, yMin: 300, yMax: 340, tolerance: 3},
 		{name: "receiver label", text: "RECEBEDOR", xMin: 260, xMax: 340, yMin: 300, yMax: 340, tolerance: 3},
 		{name: "product summary", text: "PRODUTO", xMin: 0, xMax: 80, yMin: 360, yMax: 390, tolerance: 2},
+		{name: "product tail", text: "CADEADO", xMin: 240, xMax: 310, yMin: 360, yMax: 390, tolerance: 3},
 		{name: "cargo total label", text: "VALOR", xMin: 380, xMax: 440, yMin: 360, yMax: 390, tolerance: 3},
 		{name: "first cargo type header", text: "TIPO", xMin: 0, xMax: 60, yMin: 400, yMax: 440, tolerance: 2},
 		{name: "first cargo quantity header", text: "QTD/UN.", xMin: 90, xMax: 140, yMin: 400, yMax: 440, tolerance: 2},
@@ -338,6 +339,83 @@ func TestPartyAndCargoGridPositionsTrackGeneratedReference(t *testing.T) {
 		if delta := math.Abs(actualWord.YMin - expectedWord.YMin); delta > anchor.tolerance {
 			t.Fatalf("DACTE party/cargo anchor %q y drifted by %.2f pt: actual=%f expected=%f", anchor.name, delta, actualWord.YMin, expectedWord.YMin)
 		}
+	}
+}
+
+func TestPartyAndTomadorDetailPositionsTrackGeneratedReference(t *testing.T) {
+	if !golden.PDFTextAvailable() {
+		t.Skip("pdftotext not available")
+	}
+	actual := renderFixturePDF(t, "dacte_test_1.xml", nil)
+	expected := filepath.Join("..", "tests", "generated", "dacte", "dacte_default.pdf")
+	actualWords := mustExtractPDFWords(t, actual)
+	expectedWords := mustExtractPDFWords(t, expected)
+	for _, anchor := range []struct {
+		name      string
+		text      string
+		xMin      float64
+		xMax      float64
+		yMin      float64
+		yMax      float64
+		tolerance float64
+	}{
+		{name: "sender title", text: "REMETENTE", xMin: 0, xMax: 80, yMin: 265, yMax: 285, tolerance: 1},
+		{name: "sender address label", text: "ENDEREÇO", xMin: 0, xMax: 80, yMin: 275, yMax: 295, tolerance: 1},
+		{name: "sender cep label", text: "CEP", xMin: 200, xMax: 235, yMin: 280, yMax: 300, tolerance: 1},
+		{name: "sender phone label", text: "FONE", xMin: 190, xMax: 235, yMin: 300, yMax: 320, tolerance: 1},
+		{name: "recipient title", text: "DESTINATÁRIO", xMin: 280, xMax: 350, yMin: 265, yMax: 285, tolerance: 1},
+		{name: "recipient cep label", text: "CEP", xMin: 475, xMax: 505, yMin: 280, yMax: 300, tolerance: 1},
+		{name: "recipient phone label", text: "FONE", xMin: 445, xMax: 485, yMin: 300, yMax: 320, tolerance: 1},
+		{name: "expeditor cpf label", text: "CNPJ/CPF", xMin: 0, xMax: 80, yMin: 345, yMax: 365, tolerance: 1},
+		{name: "receiver cpf label", text: "CNPJ/CPF", xMin: 280, xMax: 350, yMin: 345, yMax: 365, tolerance: 1},
+		{name: "expeditor phone label", text: "FONE", xMin: 190, xMax: 235, yMin: 355, yMax: 375, tolerance: 1},
+		{name: "receiver phone label", text: "FONE", xMin: 445, xMax: 485, yMin: 355, yMax: 375, tolerance: 1},
+		{name: "tomador title", text: "TOMADOR", xMin: 0, xMax: 80, yMin: 380, yMax: 400, tolerance: 1},
+		{name: "tomador address label", text: "ENDEREÇO", xMin: 0, xMax: 80, yMin: 390, yMax: 410, tolerance: 1},
+		{name: "tomador municipality label", text: "MUNICÍPIO", xMin: 290, xMax: 350, yMin: 380, yMax: 400, tolerance: 1},
+		{name: "tomador country", text: "BRASIL", xMin: 350, xMax: 400, yMin: 400, yMax: 420, tolerance: 1},
+		{name: "tomador phone label", text: "FONE", xMin: 430, xMax: 470, yMin: 400, yMax: 420, tolerance: 1},
+	} {
+		actualWord := mustFindPDFWordInBox(t, actualWords, anchor.text, anchor.xMin, anchor.xMax, anchor.yMin, anchor.yMax, 0)
+		expectedWord := mustFindPDFWordInBox(t, expectedWords, anchor.text, anchor.xMin, anchor.xMax, anchor.yMin, anchor.yMax, 0)
+		if delta := math.Abs(actualWord.XMin - expectedWord.XMin); delta > anchor.tolerance {
+			t.Fatalf("DACTE party/tomador anchor %q x drifted by %.2f pt: actual=%f expected=%f", anchor.name, delta, actualWord.XMin, expectedWord.XMin)
+		}
+		if delta := math.Abs(actualWord.YMin - expectedWord.YMin); delta > anchor.tolerance {
+			t.Fatalf("DACTE party/tomador anchor %q y drifted by %.2f pt: actual=%f expected=%f", anchor.name, delta, actualWord.YMin, expectedWord.YMin)
+		}
+	}
+}
+
+func TestPartySectionDividersUseFullWidthRowsLikeUpstream(t *testing.T) {
+	actual := renderFixturePDF(t, "dacte_test_1.xml", nil)
+	data, err := os.ReadFile(actual)
+	if err != nil {
+		t.Fatal(err)
+	}
+	re := regexp.MustCompile(`([0-9.]+) ([0-9.]+) ([0-9.]+) -([0-9.]+) re S`)
+	matches := re.FindAllSubmatch(data, -1)
+	var firstRow, secondRow bool
+	for _, match := range matches {
+		x := mustParsePDFPoint(t, match[1])
+		y := mustParsePDFPoint(t, match[2])
+		width := mustParsePDFPoint(t, match[3])
+		height := mustParsePDFPoint(t, match[4])
+		if math.Abs(x-14.17) < 0.2 && math.Abs(y-592.44) < 0.3 && math.Abs(width-566.93) < 0.3 && math.Abs(height-68.03) < 0.3 {
+			firstRow = true
+		}
+		if math.Abs(x-14.17) < 0.2 && math.Abs(y-524.41) < 0.3 && math.Abs(width-566.93) < 0.3 && math.Abs(height-51.02) < 0.3 {
+			secondRow = true
+		}
+		if math.Abs(y-592.44) < 0.3 && (math.Abs(width-269.29) < 0.3 || math.Abs(width-297.64) < 0.3) {
+			t.Fatalf("DACTE party section drew old half-width first-row rectangle: x=%f width=%f", x, width)
+		}
+		if math.Abs(y-524.41) < 0.3 && (math.Abs(width-269.29) < 0.3 || math.Abs(width-297.64) < 0.3) {
+			t.Fatalf("DACTE party section drew old half-width second-row rectangle: x=%f width=%f", x, width)
+		}
+	}
+	if !firstRow || !secondRow {
+		t.Fatalf("DACTE party section full-width rows missing: first=%t second=%t", firstRow, secondRow)
 	}
 }
 
@@ -405,22 +483,133 @@ func TestHeaderBarcodePlacementTracksGeneratedReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	re := regexp.MustCompile(`q ([0-9.]+) 0 0 ([0-9.]+) ([0-9.]+) ([0-9.]+) cm /I[0-9a-f]+ Do Q`)
+	re := regexp.MustCompile(`([0-9.]+) ([0-9.]+) ([0-9.]+) -([0-9.]+) re f`)
 	matches := re.FindAllSubmatch(data, -1)
+	var found int
+	minX, minY := math.MaxFloat64, math.MaxFloat64
+	maxX, maxY := 0.0, 0.0
 	for _, match := range matches {
-		width := mustParsePDFPoint(t, match[1])
-		height := mustParsePDFPoint(t, match[2])
-		if width < 200 || height > 30 {
+		x := mustParsePDFPoint(t, match[1])
+		y := mustParsePDFPoint(t, match[2])
+		width := mustParsePDFPoint(t, match[3])
+		height := mustParsePDFPoint(t, match[4])
+		if x < 190 || x > 460 || y < 650 || y > 710 || width > 10 || height > 40 {
 			continue
 		}
-		x := mustParsePDFPoint(t, match[3])
-		y := mustParsePDFPoint(t, match[4])
-		if math.Abs(width-232.44) > 0.5 || math.Abs(height-24.09) > 0.5 || math.Abs(x-206.93) > 0.5 || math.Abs(y-666.06) > 0.5 {
-			t.Fatalf("DACTE barcode transform drifted: width=%f height=%f x=%f y=%f", width, height, x, y)
+		found++
+		if x < minX {
+			minX = x
 		}
-		return
+		if x+width > maxX {
+			maxX = x + width
+		}
+		if y-height < minY {
+			minY = y - height
+		}
+		if y > maxY {
+			maxY = y
+		}
 	}
-	t.Fatalf("DACTE barcode image transform not found in %s", actual)
+	if found != 76 {
+		t.Fatalf("DACTE barcode vector bars = %d, want 76", found)
+	}
+	if math.Abs(minX-216.69) > 0.5 || math.Abs(maxX-429.61) > 0.5 || math.Abs(minY-678.90) > 0.5 || math.Abs(maxY-700.16) > 0.5 {
+		t.Fatalf("DACTE barcode vector bounds drifted: minX=%f maxX=%f minY=%f maxY=%f", minX, maxX, minY, maxY)
+	}
+
+	strokeRe := regexp.MustCompile(`([0-9.]+) ([0-9.]+) ([0-9.]+) -([0-9.]+) re S`)
+	strokeMatches := strokeRe.FindAllSubmatch(data, -1)
+	for _, match := range strokeMatches {
+		x := mustParsePDFPoint(t, match[1])
+		y := mustParsePDFPoint(t, match[2])
+		width := mustParsePDFPoint(t, match[3])
+		height := mustParsePDFPoint(t, match[4])
+		if math.Abs(x-204.09) < 0.3 && math.Abs(y-702.99) < 0.3 && math.Abs(width-238.11) < 0.3 && math.Abs(height-28.35) < 0.3 {
+			return
+		}
+	}
+	t.Fatal("DACTE header missing Python barcode cell rectangle above CHAVE DE ACESSO")
+}
+
+func TestHeaderDoesNotDrawSyntheticQRCodeFrame(t *testing.T) {
+	actual := renderFixturePDF(t, "dacte_test_1.xml", nil)
+	data, err := os.ReadFile(actual)
+	if err != nil {
+		t.Fatal(err)
+	}
+	re := regexp.MustCompile(`([0-9.]+) ([0-9.]+) ([0-9.]+) -([0-9.]+) re S`)
+	matches := re.FindAllSubmatch(data, -1)
+	for _, match := range matches {
+		x := mustParsePDFPoint(t, match[1])
+		y := mustParsePDFPoint(t, match[2])
+		width := mustParsePDFPoint(t, match[3])
+		height := mustParsePDFPoint(t, match[4])
+		if math.Abs(x-14.17) < 0.2 && width > 560 && y > 700 && y < 800 && height > 190 {
+			t.Fatalf("DACTE header unexpectedly drew a synthetic full-width QR frame: x=%f y=%f width=%f height=%f", x, y, width, height)
+		}
+	}
+}
+
+func TestRoadModalFooterGeometryTracksPythonReference(t *testing.T) {
+	actual := renderFixturePDF(t, "dacte_test_1.xml", nil)
+	data, err := os.ReadFile(actual)
+	if err != nil {
+		t.Fatal(err)
+	}
+	re := regexp.MustCompile(`([0-9.]+) ([0-9.]+) ([0-9.]+) -([0-9.]+) re S`)
+	matches := re.FindAllSubmatch(data, -1)
+	var foundTitle, foundBody bool
+	for _, match := range matches {
+		x := mustParsePDFPoint(t, match[1])
+		y := mustParsePDFPoint(t, match[2])
+		width := mustParsePDFPoint(t, match[3])
+		height := mustParsePDFPoint(t, match[4])
+		if math.Abs(x-14.17) < 0.2 && math.Abs(width-566.93) < 0.3 && height > 700 {
+			t.Fatalf("DACTE road modal unexpectedly drew a full-page rectangle: x=%f y=%f width=%f height=%f", x, y, width, height)
+		}
+		if math.Abs(x-14.17) < 0.2 && math.Abs(y-99.21) < 0.3 && math.Abs(width-566.93) < 0.3 && math.Abs(height-8.50) < 0.3 {
+			foundTitle = true
+		}
+		if math.Abs(x-14.17) < 0.2 && math.Abs(y-90.71) < 0.3 && math.Abs(width-566.93) < 0.3 && math.Abs(height-51.02) < 0.3 {
+			foundBody = true
+		}
+	}
+	if !foundTitle || !foundBody {
+		t.Fatalf("DACTE road modal footer geometry drifted: foundTitle=%t foundBody=%t", foundTitle, foundBody)
+	}
+}
+
+func TestRoadModalFooterFieldsTrackGeneratedReference(t *testing.T) {
+	if !golden.PDFTextAvailable() {
+		t.Skip("pdftotext not available")
+	}
+	actual := renderFixturePDF(t, "dacte_test_1.xml", nil)
+	expected := filepath.Join("..", "tests", "generated", "dacte", "dacte_default.pdf")
+	actualWords := mustExtractPDFWords(t, actual)
+	expectedWords := mustExtractPDFWords(t, expected)
+	for _, anchor := range []struct {
+		text      string
+		xMin      float64
+		xMax      float64
+		yMin      float64
+		yMax      float64
+		tolerance float64
+	}{
+		{text: "RNTRC", xMin: 0, xMax: 60, yMin: 700, yMax: 730, tolerance: 0.5},
+		{text: "CIOT", xMin: 130, xMax: 180, yMin: 700, yMax: 730, tolerance: 0.8},
+		{text: "DATA", xMin: 270, xMax: 320, yMin: 700, yMax: 730, tolerance: 0.8},
+		{text: "ESTE", xMin: 400, xMax: 450, yMin: 700, yMax: 730, tolerance: 0.8},
+		{text: "VIGOR", xMin: 450, xMax: 510, yMin: 728, yMax: 740, tolerance: 1.0},
+	} {
+		actualWord := mustFindPDFWordInBox(t, actualWords, anchor.text, anchor.xMin, anchor.xMax, anchor.yMin, anchor.yMax, 0)
+		expectedWord := mustFindPDFWordInBox(t, expectedWords, anchor.text, anchor.xMin, anchor.xMax, anchor.yMin, anchor.yMax, 0)
+		if delta := math.Abs(actualWord.XMin - expectedWord.XMin); delta > anchor.tolerance {
+			t.Fatalf("DACTE road modal footer field %q x drifted by %.2f pt: actual=%f expected=%f", anchor.text, delta, actualWord.XMin, expectedWord.XMin)
+		}
+		if delta := math.Abs(actualWord.YMin - expectedWord.YMin); delta > anchor.tolerance {
+			t.Fatalf("DACTE road modal footer field %q y drifted by %.2f pt: actual=%f expected=%f", anchor.text, delta, actualWord.YMin, expectedWord.YMin)
+		}
+	}
 }
 
 func TestBodyVerticalPositionsTrackGeneratedReference(t *testing.T) {

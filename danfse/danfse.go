@@ -459,57 +459,17 @@ func draw(pdf *pdfdraw.PDF, data nfseData, config Config) {
 	drawHeader(pdf, x, y, w, data, config)
 	y += 39
 	drawIssuer(pdf, x+2, y, w-4, data.Issuer, config)
-	y += 22
+	y += 23
 	drawParty(pdf, x+2, y, w-4, 28, "TOMADOR DO SERVIÇO", data.Taker, config)
 	y += 30
 	drawIntermediary(pdf, x+2, y, w-4, config)
 	y -= 2
 	drawServiceProvided(pdf, x+2, y, w-4, data, config)
-	y += 26
-	drawBox(pdf, x+2, y, w-4, 34, "TRIBUTAÇÃO MUNICIPAL", []field{
-		{"Tributação do ISSQN", data.MunicipalTaxes.Taxation},
-		{"País Resultado da Prestação do Serviço", data.MunicipalTaxes.Country},
-		{"Município de Incidência do ISSQN", data.MunicipalTaxes.IncidenceCity},
-		{"Regime Especial de Tributação", data.MunicipalTaxes.SpecialTaxRegime},
-		{"Tipo de Imunidade", data.MunicipalTaxes.ImmunityType},
-		{"Suspensão da Exigibilidade do ISSQN", data.MunicipalTaxes.Suspension},
-		{"Número Processo Suspensão", data.MunicipalTaxes.SuspensionProcess},
-		{"Benefício Municipal", data.MunicipalTaxes.MunicipalBenefit},
-		{"Valor do Serviço", data.ServiceAmount},
-		{"Desconto Incondicionado", "-"},
-		{"Total Deduções/Reduções", data.MunicipalTaxes.Deductions},
-		{"Cálculo do BM", data.MunicipalTaxes.BenefitCalculation},
-		{"BC ISSQN", data.CalculationBasis},
-		{"Alíquota Aplicada", data.AppliedRate},
-		{"Retenção do ISSQN", data.MunicipalTaxes.RetentionType},
-		{"ISSQN Apurado", data.MunicipalTaxes.ClearedISSQN},
-	}, config)
-	y += 34
-	drawBox(pdf, x+2, y, w-4, 20, "TRIBUTAÇÃO FEDERAL", []field{
-		{"IRRF", data.FederalTaxes.IRRF},
-		{"Contribuição Previdenciária - Retida", data.FederalTaxes.SocialSecurityContribution},
-		{"Contribuições Sociais - Retidas", data.FederalTaxes.SocialContributions},
-		{"Descrição Contrib. Sociais - Retidas", data.FederalTaxes.SocialContributionsDesc},
-		{"PIS - Débito Apuração Própria", data.FederalTaxes.PISDebit},
-		{"COFINS - Débito Apuração Própria", data.FederalTaxes.COFINSDebit},
-	}, config)
-	y += 19
-	drawBox(pdf, x+2, y, w-4, 20, "VALOR TOTAL DA NFS-E", []field{
-		{"Valor do Serviço", data.ServiceAmount},
-		{"Desconto Condicionado", "-"},
-		{"Desconto Incondicionado", "-"},
-		{"ISSQN Retido", data.ISSQNRetained},
-		{"Total das Retenções Federais", data.FederalTaxes.TotalFederalRetentions},
-		{"PIS/COFINS - Débito Apur. Própria", data.FederalTaxes.PISCOFINSDebit},
-		{"Valor Líquido da NFS-e", data.NetValue},
-	}, config)
-	y += 22
-	drawBox(pdf, x+2, y, w-4, 12, "TOTAIS APROXIMADOS DOS TRIBUTOS", []field{
-		{"Federais", data.FederalApprox},
-		{"Estaduais", data.StateApprox},
-		{"Municipais", data.MunicipalApprox},
-	}, config)
-	y += 15
+	y += 25
+	drawTaxes(pdf, x, y, w, data, config)
+	y += 53
+	drawAmount(pdf, x, y, w, data, config)
+	y += 35
 	drawComplementaryInfo(pdf, x+2, y, w-4, data.ComplementaryInfo, config)
 }
 
@@ -554,7 +514,7 @@ func drawHeader(pdf *pdfdraw.PDF, x, y, w float64, data nfseData, config Config)
 	pdf.MultiCell(w, 2.5, "DANFSe v1.0\nDocumento Auxiliar da NFS-e", "", "C", false)
 	pdf.Line(x+2, y+13, x+w-2, y+13)
 
-	drawDANFSEField(pdf, x+3, sectionY+2, colW, "Chave de Acesso da NFS-e", data.Key, 7, 8, 0, config)
+	drawDANFSEField(pdf, x+3, sectionY+2, colW*3, "Chave de Acesso da NFS-e", data.Key, 7, 8, 0, config)
 	drawDANFSEField(pdf, x+3, sectionY+9, colW, "Número da NFS-e", data.Number, 7, 8, 0, config)
 	drawDANFSEField(pdf, x+colW, sectionY+9, colW, "Competência da NFS-e", data.Competence, 7, 8, 0, config)
 	drawDANFSEField(pdf, x+(colW*2), sectionY+9, colW, "Data e Hora da emissão da NFS-e", strings.TrimSpace(data.ProcessedDate+" "+data.ProcessedTime), 7, 8, 0, config)
@@ -562,14 +522,14 @@ func drawHeader(pdf *pdfdraw.PDF, x, y, w float64, data nfseData, config Config)
 	drawDANFSEField(pdf, x+colW, sectionY+16, colW, "Série da DPS", data.DPSSeries, 7, 8, 0, config)
 	drawDANFSEField(pdf, x+(colW*2), sectionY+16, colW, "Data e Hora da emissão da DPS", strings.TrimSpace(data.DPSEmissionDate+" "+data.DPSEmissionTime), 7, 8, 0, config)
 
-	drawQR(pdf, 170, 13, data.Key)
+	drawQR(pdf, 173.87, 15.77, 19, data.Key)
 	pdf.SetFont(string(config.FontType), "", 7)
 	pdf.SetXY(x+(colW*3)-2, sectionY+18)
 	pdf.MultiCell(colW, 3, "A autenticidade desta NFS-e pode ser verificada pela leitura deste código QR ou pela consulta da chave de acesso no portal nacional da NFS-e", "", "L", false)
 	pdf.Line(x+2, y+40, x+w-2, y+40)
 }
 
-func drawQR(pdf *pdfdraw.PDF, x, y float64, key string) {
+func drawQR(pdf *pdfdraw.PDF, x, y, size float64, key string) {
 	if key == "" {
 		return
 	}
@@ -579,7 +539,7 @@ func drawQR(pdf *pdfdraw.PDF, x, y float64, key string) {
 	}
 	name := "danfse-qr-" + key
 	pdf.RegisterImageOptionsReader(name, fpdf.ImageOptions{ImageType: "PNG"}, bytes.NewReader(pngBytes))
-	pdf.ImageOptions(name, x, y, 30, 30, false, fpdf.ImageOptions{ImageType: "PNG"}, 0, "")
+	pdf.ImageOptions(name, x, y, size, size, false, fpdf.ImageOptions{ImageType: "PNG"}, 0, "")
 }
 
 type field struct {
@@ -639,6 +599,102 @@ func drawServiceProvided(pdf *pdfdraw.PDF, x, y, w float64, data nfseData, confi
 	pdf.Line(x, y+25, x+w, y+25)
 }
 
+func drawTaxes(pdf *pdfdraw.PDF, x, y, w float64, data nfseData, config Config) {
+	colW := w / 4
+	sectionY := y + 1
+	drawDANFSETitle(pdf, x+3, sectionY, "TRIBUTAÇÃO MUNICIPAL", 9, config)
+
+	municipalRows := [][]field{
+		{
+			{"Tributação do ISSQN", data.MunicipalTaxes.Taxation},
+			{"País Resultado da Prestação do Serviço", data.MunicipalTaxes.Country},
+			{"Município de Incidência do ISSQN", data.MunicipalTaxes.IncidenceCity},
+			{"Regime Especial de Tributação", data.MunicipalTaxes.SpecialTaxRegime},
+		},
+		{
+			{"Tipo de Imunidade", data.MunicipalTaxes.ImmunityType},
+			{"Suspensão da Exigibilidade do ISSQN", data.MunicipalTaxes.Suspension},
+			{"Número Processo Suspensão", data.MunicipalTaxes.SuspensionProcess},
+			{"Benefício Municipal", data.MunicipalTaxes.MunicipalBenefit},
+		},
+		{
+			{"Valor do Serviço", data.ServiceAmount},
+			{"Desconto Incondicionado", "-"},
+			{"Total Deduções/Reduções", data.MunicipalTaxes.Deductions},
+			{"Cálculo do BM", data.MunicipalTaxes.BenefitCalculation},
+		},
+		{
+			{"BC ISSQN", data.CalculationBasis},
+			{"Alíquota Aplicada", data.AppliedRate},
+			{"Retenção do ISSQN", data.MunicipalTaxes.RetentionType},
+			{"ISSQN Apurado", data.MunicipalTaxes.ClearedISSQN},
+		},
+	}
+	drawDANFSEFieldRows(pdf, x, sectionY+5, colW, municipalRows, 7, config)
+	pdf.Line(x+2, y+34, x+w-2, y+34)
+
+	federalY := y + 35
+	drawDANFSETitle(pdf, x+3, federalY, "TRIBUTAÇÃO FEDERAL", 9, config)
+	federalRows := [][]field{
+		{
+			{"IRRF", data.FederalTaxes.IRRF},
+			{"Contribuição Previdenciária - Retida", data.FederalTaxes.SocialSecurityContribution},
+			{"Contribuições Sociais - Retidas", data.FederalTaxes.SocialContributions},
+			{"Descrição Contrib. Sociais - Retidas", data.FederalTaxes.SocialContributionsDesc},
+		},
+		{
+			{"PIS - Débito Apuração Própria", data.FederalTaxes.PISDebit},
+			{"COFINS - Débito Apuração Própria", data.FederalTaxes.COFINSDebit},
+		},
+	}
+	drawDANFSEFieldRows(pdf, x, federalY+4, colW, federalRows, 7, config)
+	pdf.Line(x+2, y+53, x+w-2, y+53)
+}
+
+func drawAmount(pdf *pdfdraw.PDF, x, y, w float64, data nfseData, config Config) {
+	colW := w / 4
+	sectionY := y + 1
+	drawDANFSETitle(pdf, x+3, sectionY, "VALOR TOTAL DA NFS-E", 9, config)
+	drawDANFSEField(pdf, x+3, sectionY+5, colW, "Valor do Serviço", data.ServiceAmount, 7, 8, 0, config)
+	drawDANFSEField(pdf, x+colW, sectionY+5, colW, "Desconto Condicionado", "-", 7, 8, 0, config)
+	drawDANFSEField(pdf, x+(colW*2), sectionY+5, colW, "Desconto Incondicionado", "-", 7, 8, 0, config)
+	drawDANFSEField(pdf, x+(colW*3), sectionY+5, colW, "ISSQN Retido", data.ISSQNRetained, 7, 8, 0, config)
+	drawDANFSEField(pdf, x+3, sectionY+12, colW, "Total das Retenções Federais", data.FederalTaxes.TotalFederalRetentions, 7, 8, 0, config)
+	drawDANFSEField(pdf, x+colW, sectionY+12, colW, "PIS/COFINS - Débito Apur. Própria", data.FederalTaxes.PISCOFINSDebit, 7, 8, 0, config)
+	drawDANFSEField(pdf, x+(colW*3), sectionY+12, colW, "Valor Líquido da NFS-e", data.NetValue, 7, 8, 0, config)
+	pdf.Line(x+2, y+21, x+w-2, y+21)
+
+	taxColW := w / 3
+	totalsY := sectionY + 23
+	drawDANFSETitle(pdf, x+3, totalsY, "TOTAIS APROXIMADOS DOS TRIBUTOS", 9, config)
+	drawDANFSECenteredField(pdf, x+3, totalsY+5, taxColW, "Federais", data.FederalApprox, config)
+	drawDANFSECenteredField(pdf, x+taxColW, totalsY+5, taxColW, "Estaduais", data.StateApprox, config)
+	drawDANFSECenteredField(pdf, x+(taxColW*2), totalsY+5, taxColW, "Municipais", data.MunicipalApprox, config)
+	pdf.Line(x+2, y+35, x+w-2, y+35)
+}
+
+func drawDANFSEFieldRows(pdf *pdfdraw.PDF, x, y, colW float64, rows [][]field, rowH float64, config Config) {
+	for rowIndex, row := range rows {
+		rowY := y + float64(rowIndex)*rowH
+		for colIndex, field := range row {
+			fieldX := x + float64(colIndex)*colW
+			if colIndex == 0 {
+				fieldX = x + 3
+			}
+			drawDANFSEField(pdf, fieldX, rowY, colW, field.Label, field.Value, 7, 8, 0, config)
+		}
+	}
+}
+
+func drawDANFSECenteredField(pdf *pdfdraw.PDF, x, y, w float64, label, value string, config Config) {
+	pdf.SetFont(string(config.FontType), "B", 7)
+	pdf.SetXY(x, y)
+	pdf.CellFormat(w, 3, label, "", 0, "C", false, 0, "")
+	pdf.SetFont(string(config.FontType), "", 8)
+	pdf.SetXY(x, y)
+	pdf.CellFormat(w, 8, value, "", 0, "C", false, 0, "")
+}
+
 func drawDANFSETitle(pdf *pdfdraw.PDF, x, y float64, text string, size float64, config Config) {
 	pdf.SetFont(string(config.FontType), "B", size)
 	pdf.SetXY(x, y)
@@ -682,35 +738,6 @@ func drawComplementaryInfo(pdf *pdfdraw.PDF, x, y, w float64, value string, conf
 	pdf.SetFont(string(config.FontType), "", 7)
 	pdf.SetXY(x+1, y+5)
 	pdf.CellFormat(w-2, 3, longFieldPDF(pdf, optional(value), w-2), "", 1, "L", false, 0, "")
-}
-
-func drawBox(pdf *pdfdraw.PDF, x, y, w, h float64, title string, fields []field, config Config) {
-	pdf.Rect(x, y, w, h, "")
-	if title != "" {
-		pdf.SetFont(string(config.FontType), "B", 8)
-		pdf.SetXY(x+1, y+1)
-		pdf.CellFormat(w-2, 4, title, "", 1, "L", false, 0, "")
-	}
-	startY := y + 5
-	if title == "" {
-		startY = y + 1
-	}
-	colW := w / 4
-	rowH := 6.2
-	for i, field := range fields {
-		col := float64(i % 4)
-		row := float64(i / 4)
-		fx := x + 1 + col*colW
-		fy := startY + row*rowH
-		if fy+rowH > y+h {
-			return
-		}
-		pdf.SetXY(fx, fy)
-		pdf.SetFont(string(config.FontType), "B", 6)
-		pdf.CellFormat(colW-2, 2.5, field.Label, "", 2, "L", false, 0, "")
-		pdf.SetFont(string(config.FontType), "", 7)
-		pdf.CellFormat(colW-2, 3, longFieldPDF(pdf, field.Value, colW-2), "", 0, "L", false, 0, "")
-	}
 }
 
 func longFieldPDF(pdf *pdfdraw.PDF, text string, limitMM float64) string {
