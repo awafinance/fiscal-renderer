@@ -193,8 +193,150 @@ func TestHeaderTitlePositionTracksGeneratedReference(t *testing.T) {
 	} {
 		actualWord := mustFindPDFWordInBox(t, actualWords, anchor.text, anchor.xMin, anchor.xMax, anchor.yMin, anchor.yMax, 0)
 		expectedWord := mustFindPDFWordInBox(t, expectedWords, anchor.text, anchor.xMin, anchor.xMax, anchor.yMin, anchor.yMax, 0)
+		if delta := math.Abs(actualWord.XMin - expectedWord.XMin); delta > anchor.tolerance {
+			t.Fatalf("DACTE header anchor %q x drifted by %.2f pt: actual=%f expected=%f", anchor.name, delta, actualWord.XMin, expectedWord.XMin)
+		}
 		if delta := math.Abs(actualWord.YMin - expectedWord.YMin); delta > anchor.tolerance {
 			t.Fatalf("DACTE header anchor %q y drifted by %.2f pt: actual=%f expected=%f", anchor.name, delta, actualWord.YMin, expectedWord.YMin)
+		}
+	}
+}
+
+func TestHeaderEmitterPositionsTrackGeneratedReference(t *testing.T) {
+	if !golden.PDFTextAvailable() {
+		t.Skip("pdftotext not available")
+	}
+	actual := renderFixturePDF(t, "dacte_test_1.xml", nil)
+	expected := filepath.Join("..", "tests", "generated", "dacte", "dacte_default.pdf")
+	actualWords := mustExtractPDFWords(t, actual)
+	expectedWords := mustExtractPDFWords(t, expected)
+	for _, anchor := range []struct {
+		name      string
+		text      string
+		xMin      float64
+		xMax      float64
+		yMin      float64
+		yMax      float64
+		tolerance float64
+	}{
+		{name: "emitter name", text: "FANTASMA", xMin: 20, xMax: 100, yMin: 75, yMax: 100, tolerance: 1},
+		{name: "emitter cnpj label", text: "CNPJ:", xMin: 30, xMax: 80, yMin: 90, yMax: 115, tolerance: 1},
+		{name: "emitter city", text: "SAO", xMin: 55, xMax: 95, yMin: 120, yMax: 140, tolerance: 1},
+		{name: "emitter phone", text: "Fone:", xMin: 65, xMax: 105, yMin: 135, yMax: 155, tolerance: 1},
+	} {
+		actualWord := mustFindPDFWordInBox(t, actualWords, anchor.text, anchor.xMin, anchor.xMax, anchor.yMin, anchor.yMax, 0)
+		expectedWord := mustFindPDFWordInBox(t, expectedWords, anchor.text, anchor.xMin, anchor.xMax, anchor.yMin, anchor.yMax, 0)
+		if delta := math.Abs(actualWord.XMin - expectedWord.XMin); delta > anchor.tolerance {
+			t.Fatalf("DACTE emitter anchor %q x drifted by %.2f pt: actual=%f expected=%f", anchor.name, delta, actualWord.XMin, expectedWord.XMin)
+		}
+		if delta := math.Abs(actualWord.YMin - expectedWord.YMin); delta > anchor.tolerance {
+			t.Fatalf("DACTE emitter anchor %q y drifted by %.2f pt: actual=%f expected=%f", anchor.name, delta, actualWord.YMin, expectedWord.YMin)
+		}
+	}
+}
+
+func TestHeaderMetadataPositionsTrackGeneratedReference(t *testing.T) {
+	if !golden.PDFTextAvailable() {
+		t.Skip("pdftotext not available")
+	}
+	actual := renderFixturePDF(t, "dacte_test_1.xml", nil)
+	expected := filepath.Join("..", "tests", "generated", "dacte", "dacte_default.pdf")
+	actualWords := mustExtractPDFWords(t, actual)
+	expectedWords := mustExtractPDFWords(t, expected)
+	for _, anchor := range []struct {
+		name      string
+		text      string
+		xMin      float64
+		xMax      float64
+		yMin      float64
+		yMax      float64
+		tolerance float64
+	}{
+		{name: "model label", text: "MODELO", xMin: 190, xMax: 260, yMin: 100, yMax: 125, tolerance: 1},
+		{name: "series label", text: "SÉRIE", xMin: 240, xMax: 300, yMin: 100, yMax: 125, tolerance: 1},
+		{name: "number label", text: "NÚMERO", xMin: 290, xMax: 350, yMin: 100, yMax: 125, tolerance: 1},
+		{name: "date label", text: "DATA", xMin: 340, xMax: 390, yMin: 105, yMax: 125, tolerance: 1},
+		{name: "emission label", text: "EMISSÃO", xMin: 350, xMax: 410, yMin: 115, yMax: 135, tolerance: 1},
+		{name: "invoice number", text: "99203223", xMin: 295, xMax: 350, yMin: 120, yMax: 140, tolerance: 1},
+		{name: "date value", text: "27/03/2024", xMin: 330, xMax: 390, yMin: 120, yMax: 145, tolerance: 1},
+		{name: "page label", text: "FL", xMin: 410, xMax: 440, yMin: 105, yMax: 125, tolerance: 1},
+	} {
+		actualWord := mustFindPDFWordInBox(t, actualWords, anchor.text, anchor.xMin, anchor.xMax, anchor.yMin, anchor.yMax, 0)
+		expectedWord := mustFindPDFWordInBox(t, expectedWords, anchor.text, anchor.xMin, anchor.xMax, anchor.yMin, anchor.yMax, 0)
+		if delta := math.Abs(actualWord.XMin - expectedWord.XMin); delta > anchor.tolerance {
+			t.Fatalf("DACTE metadata anchor %q x drifted by %.2f pt: actual=%f expected=%f", anchor.name, delta, actualWord.XMin, expectedWord.XMin)
+		}
+		if delta := math.Abs(actualWord.YMin - expectedWord.YMin); delta > anchor.tolerance {
+			t.Fatalf("DACTE metadata anchor %q y drifted by %.2f pt: actual=%f expected=%f", anchor.name, delta, actualWord.YMin, expectedWord.YMin)
+		}
+	}
+}
+
+func TestHeaderRouteLocationsTrackGeneratedReference(t *testing.T) {
+	if !golden.PDFTextAvailable() {
+		t.Skip("pdftotext not available")
+	}
+	actual := renderFixturePDF(t, "dacte_test_1.xml", nil)
+	expected := filepath.Join("..", "tests", "generated", "dacte", "dacte_default.pdf")
+	actualWords := mustExtractPDFWords(t, actual)
+	expectedWords := mustExtractPDFWords(t, expected)
+	for _, anchor := range []struct {
+		name      string
+		text      string
+		xMin      float64
+		xMax      float64
+		yMin      float64
+		yMax      float64
+		tolerance float64
+	}{
+		{name: "start label", text: "INÍCIO", xMin: 0, xMax: 80, yMin: 235, yMax: 270, tolerance: 3},
+		{name: "end label", text: "TÉRMINO", xMin: 260, xMax: 340, yMin: 235, yMax: 270, tolerance: 3},
+	} {
+		actualWord := mustFindPDFWordInBox(t, actualWords, anchor.text, anchor.xMin, anchor.xMax, anchor.yMin, anchor.yMax, 0)
+		expectedWord := mustFindPDFWordInBox(t, expectedWords, anchor.text, anchor.xMin, anchor.xMax, anchor.yMin, anchor.yMax, 0)
+		if delta := math.Abs(actualWord.XMin - expectedWord.XMin); delta > anchor.tolerance {
+			t.Fatalf("DACTE route anchor %q x drifted by %.2f pt: actual=%f expected=%f", anchor.name, delta, actualWord.XMin, expectedWord.XMin)
+		}
+		if delta := math.Abs(actualWord.YMin - expectedWord.YMin); delta > anchor.tolerance {
+			t.Fatalf("DACTE route anchor %q y drifted by %.2f pt: actual=%f expected=%f", anchor.name, delta, actualWord.YMin, expectedWord.YMin)
+		}
+	}
+}
+
+func TestPartyAndCargoGridPositionsTrackGeneratedReference(t *testing.T) {
+	if !golden.PDFTextAvailable() {
+		t.Skip("pdftotext not available")
+	}
+	actual := renderFixturePDF(t, "dacte_test_1.xml", nil)
+	expected := filepath.Join("..", "tests", "generated", "dacte", "dacte_default.pdf")
+	actualWords := mustExtractPDFWords(t, actual)
+	expectedWords := mustExtractPDFWords(t, expected)
+	for _, anchor := range []struct {
+		name      string
+		text      string
+		xMin      float64
+		xMax      float64
+		yMin      float64
+		yMax      float64
+		tolerance float64
+	}{
+		{name: "expeditor label", text: "EXPEDIDOR", xMin: 0, xMax: 80, yMin: 300, yMax: 340, tolerance: 3},
+		{name: "receiver label", text: "RECEBEDOR", xMin: 260, xMax: 340, yMin: 300, yMax: 340, tolerance: 3},
+		{name: "product summary", text: "PRODUTO", xMin: 0, xMax: 80, yMin: 360, yMax: 390, tolerance: 2},
+		{name: "cargo total label", text: "VALOR", xMin: 380, xMax: 440, yMin: 360, yMax: 390, tolerance: 3},
+		{name: "first cargo type header", text: "TIPO", xMin: 0, xMax: 60, yMin: 400, yMax: 440, tolerance: 2},
+		{name: "first cargo quantity header", text: "QTD/UN.", xMin: 90, xMax: 140, yMin: 400, yMax: 440, tolerance: 2},
+		{name: "second cargo type header", text: "TIPO", xMin: 140, xMax: 190, yMin: 400, yMax: 440, tolerance: 2},
+		{name: "cubage header", text: "CUBAGEM", xMin: 420, xMax: 480, yMin: 400, yMax: 440, tolerance: 2},
+		{name: "volume quantity", text: "14", xMin: 480, xMax: 520, yMin: 420, yMax: 450, tolerance: 2},
+	} {
+		actualWord := mustFindPDFWordInBox(t, actualWords, anchor.text, anchor.xMin, anchor.xMax, anchor.yMin, anchor.yMax, 0)
+		expectedWord := mustFindPDFWordInBox(t, expectedWords, anchor.text, anchor.xMin, anchor.xMax, anchor.yMin, anchor.yMax, 0)
+		if delta := math.Abs(actualWord.XMin - expectedWord.XMin); delta > anchor.tolerance {
+			t.Fatalf("DACTE party/cargo anchor %q x drifted by %.2f pt: actual=%f expected=%f", anchor.name, delta, actualWord.XMin, expectedWord.XMin)
+		}
+		if delta := math.Abs(actualWord.YMin - expectedWord.YMin); delta > anchor.tolerance {
+			t.Fatalf("DACTE party/cargo anchor %q y drifted by %.2f pt: actual=%f expected=%f", anchor.name, delta, actualWord.YMin, expectedWord.YMin)
 		}
 	}
 }

@@ -254,6 +254,39 @@ func TestReceiptTextMatchesUpstreamContract(t *testing.T) {
 	}
 }
 
+func TestReceiptPositionsTrackGeneratedReference(t *testing.T) {
+	if !golden.PDFTextAvailable() {
+		t.Skip("pdftotext not available")
+	}
+	actual := renderFixturePDF(t, "nfe_test_1.xml", nil)
+	expected := filepath.Join("..", "tests", "generated", "danfe", "danfe_default.pdf")
+	for _, anchor := range []struct {
+		name      string
+		word      string
+		xMin      float64
+		xMax      float64
+		yMin      float64
+		yMax      float64
+		tolerance float64
+	}{
+		{name: "receipt text first line", word: "RECEBEMOS", xMin: 0, xMax: 80, yMin: 10, yMax: 30, tolerance: 0.5},
+		{name: "receipt text second line", word: "AMBIENTE", xMin: 0, xMax: 80, yMin: 18, yMax: 35, tolerance: 0.5},
+		{name: "receipt date label", word: "DATA", xMin: 0, xMax: 80, yMin: 35, yMax: 50, tolerance: 0.5},
+		{name: "receipt nf title", word: "NF-e", xMin: 500, xMax: 560, yMin: 10, yMax: 30, tolerance: 1.5},
+		{name: "receipt nf number", word: "Nº000.000.002", xMin: 500, xMax: 580, yMin: 25, yMax: 45, tolerance: 1.0},
+		{name: "receipt series", word: "SÉRIE", xMin: 500, xMax: 560, yMin: 40, yMax: 60, tolerance: 1.0},
+	} {
+		actualWord := mustFindPDFWordInBox(t, actual, anchor.word, anchor.xMin, anchor.xMax, anchor.yMin, anchor.yMax)
+		expectedWord := mustFindPDFWordInBox(t, expected, anchor.word, anchor.xMin, anchor.xMax, anchor.yMin, anchor.yMax)
+		if delta := math.Abs(actualWord.XMin - expectedWord.XMin); delta > anchor.tolerance {
+			t.Fatalf("DANFE receipt anchor %q x drifted by %.2f pt: actual=%f expected=%f", anchor.name, delta, actualWord.XMin, expectedWord.XMin)
+		}
+		if delta := math.Abs(actualWord.YMin - expectedWord.YMin); delta > anchor.tolerance {
+			t.Fatalf("DANFE receipt anchor %q y drifted by %.2f pt: actual=%f expected=%f", anchor.name, delta, actualWord.YMin, expectedWord.YMin)
+		}
+	}
+}
+
 func TestHeaderTextMatchesUpstreamContract(t *testing.T) {
 	if !golden.PDFTextAvailable() {
 		t.Skip("pdftotext not available")
@@ -304,6 +337,35 @@ func TestHeaderPositionsTrackGeneratedReference(t *testing.T) {
 		}
 		if delta := math.Abs(actualWord.YMin - expectedWord.YMin); delta > anchor.tolerance {
 			t.Fatalf("DANFE header anchor %q y drifted by %.2f pt: actual=%f expected=%f", anchor.name, delta, actualWord.YMin, expectedWord.YMin)
+		}
+	}
+}
+
+func TestHeaderIssuerPositionsMatchUpstreamCoordinates(t *testing.T) {
+	if !golden.PDFTextAvailable() {
+		t.Skip("pdftotext not available")
+	}
+	actual := renderFixturePDF(t, "nfe_test_1.xml", nil)
+	for _, anchor := range []struct {
+		name      string
+		word      string
+		xMin      float64
+		xMax      float64
+		yMin      float64
+		yMax      float64
+		wantXMin  float64
+		wantYMin  float64
+		tolerance float64
+	}{
+		{name: "issuer name", word: "Empresa", xMin: 0, xMax: 120, yMin: 60, yMax: 90, wantXMin: 42.98, wantYMin: 72.27, tolerance: 1},
+		{name: "issuer address", word: "Avenida", xMin: 80, xMax: 140, yMin: 100, yMax: 120, wantXMin: 100.59, wantYMin: 106.07, tolerance: 1},
+	} {
+		actualWord := mustFindPDFWordInBox(t, actual, anchor.word, anchor.xMin, anchor.xMax, anchor.yMin, anchor.yMax)
+		if delta := math.Abs(actualWord.XMin - anchor.wantXMin); delta > anchor.tolerance {
+			t.Fatalf("DANFE issuer anchor %q x drifted by %.2f pt: actual=%f expected=%f", anchor.name, delta, actualWord.XMin, anchor.wantXMin)
+		}
+		if delta := math.Abs(actualWord.YMin - anchor.wantYMin); delta > anchor.tolerance {
+			t.Fatalf("DANFE issuer anchor %q y drifted by %.2f pt: actual=%f expected=%f", anchor.name, delta, actualWord.YMin, anchor.wantYMin)
 		}
 	}
 }

@@ -568,7 +568,7 @@ func draw(pdf *pdfdraw.PDF, data nfeData, config Config, continuation bool) int 
 		return 0
 	}
 	if data.Orientation != "L" && config.ReceiptPosition == ReceiptPositionTop {
-		drawReceipt(pdf, x, y, w, 18, data, config)
+		drawReceipt(pdf, x, y, w, 17, data, config)
 		y += 20
 	}
 	drawHeader(pdf, x, y+2, w, data, config, false)
@@ -606,7 +606,7 @@ func draw(pdf *pdfdraw.PDF, data nfeData, config Config, continuation bool) int 
 	y += productH + 3
 	drawAdditional(pdf, x, y, w, minFloat(46, h-(y-config.Margins.Top)-4), "DADOS ADICIONAIS", data, config)
 	if data.Orientation != "L" && config.ReceiptPosition == ReceiptPositionBottom {
-		drawReceipt(pdf, x, pageH-bottomMargin(config)-20, w, 18, data, config)
+		drawReceipt(pdf, x, pageH-bottomMargin(config)-20, w, 17, data, config)
 	}
 	drawFooterStamp(pdf, config)
 	return drawnLimit
@@ -644,19 +644,19 @@ func drawWatermark(pdf *pdfdraw.PDF, data nfeData, config Config) {
 
 func drawReceipt(pdf *pdfdraw.PDF, x, y, w, h float64, data nfeData, config Config) {
 	pdf.Rect(x, y, w, h, "")
-	numberW := 33.0
+	numberW := 30.0
 	pdf.Line(x+w-numberW, y, x+w-numberW, y+h)
 	pdf.Line(x, y+h/2, x+w-numberW, y+h/2)
 	pdf.Line(x+41, y+h/2, x+41, y+h)
-	pdf.SetFont(string(config.FontType), "", fontSize(config, 5.4))
-	pdf.SetXY(x+1, y+1)
-	pdf.MultiCell(w-numberW-2, 2.7, receiptText(data), "", "L", false)
-	pdf.SetXY(x+1, y+h/2+1)
+	pdf.SetFont(string(config.FontType), "", fontSize(config, 5))
+	pdf.SetXY(x, y+1)
+	pdf.MultiCell(w-numberW, 1.75, receiptText(data), "", "L", false)
+	pdf.SetXY(x, y+h/2-0.1)
 	pdf.CellFormat(40, 3, "DATA DE RECEBIMENTO", "", 0, "L", false, 0, "")
 	pdf.CellFormat(w-numberW-42, 3, "IDENTIFICAÇÃO E ASSINATURA DO RECEBEDOR", "", 0, "L", false, 0, "")
-	pdf.SetFont(string(config.FontType), "B", fontSize(config, 9))
-	pdf.SetXY(x+w-numberW, y+1)
-	pdf.MultiCell(numberW, 4.5, "NF-e\nNº "+formatInvoiceNumber(data.Number)+"\nSÉRIE "+data.Series, "", "C", false)
+	pdf.SetFont(string(config.FontType), "B", fontSize(config, 10))
+	pdf.SetXY(x+w-numberW, y+0.4)
+	pdf.MultiCell(numberW, 4.5, "NF-e\nNº"+formatInvoiceNumber(data.Number)+"\nSÉRIE "+data.Series, "", "C", false)
 }
 
 func drawLandscapeReceipt(pdf *pdfdraw.PDF, x, y, w, h float64, data nfeData, config Config) {
@@ -702,17 +702,17 @@ func drawHeader(pdf *pdfdraw.PDF, x, y, w float64, data nfeData, config Config, 
 			pdf.ImageOptions(config.Logo, x+2, y+10, 30, 0, false, fpdf.ImageOptions{ImageType: imageType}, 0, "")
 		}
 	}
-	issuerNameY := y + 1
-	issuerAddressY := y + 12
-	if !hasLogo {
-		issuerNameY = y
-		issuerAddressY = y + 8.5
+	issuerNameY := y - 1.9
+	issuerAddressY := y + 10
+	if hasLogo {
+		issuerNameY = y + 1
+		issuerAddressY = y + 12
 	}
 	pdf.SetFont(string(config.FontType), "B", fontSize(config, 12))
 	pdf.SetXY(x, issuerNameY)
 	pdf.MultiCell(emitW, 4, data.Issuer.Name, "", "C", false)
 	addressX := x + 2
-	addressW := emitW - 4
+	addressW := emitW
 	if hasLogo {
 		addressX = x + 32
 		addressW = emitW - 33
