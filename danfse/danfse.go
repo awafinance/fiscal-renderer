@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/awafinance/fiscal-renderer/internal/fiscalfmt"
+	"github.com/awafinance/fiscal-renderer/internal/footer"
 	"github.com/awafinance/fiscal-renderer/internal/pdfdraw"
 	"github.com/awafinance/fiscal-renderer/internal/qrcode"
 	"github.com/awafinance/fiscal-renderer/internal/xmlutil"
@@ -55,10 +56,11 @@ func (d *Document) Write(w io.Writer) error {
 	pdf := pdfdraw.NewPDF("P", "mm", "A4", "")
 	pdf.SetCompression(false)
 	pdf.SetMargins(d.Config.Margins.Left, d.Config.Margins.Top, d.Config.Margins.Right)
-	pdf.SetAutoPageBreak(false, d.Config.Margins.Bottom)
+	pdf.SetAutoPageBreak(false, bottomMargin(d.Config))
 	pdf.SetTitle("DANFSE", false)
 	pdf.AddPage()
 	draw(pdf, data, d.Config)
+	drawFooterStamp(pdf, d.Config)
 	return pdf.Output(w)
 }
 
@@ -449,12 +451,18 @@ func parseFederalTaxes(dps, values *xmlutil.Node, issqnRetained, totalRetentions
 	return taxes
 }
 
+func drawFooterStamp(pdf *pdfdraw.PDF, config Config) {
+	footer.Draw(pdf, config.FooterStamp, "danfse-footer-logo",
+		config.Margins.Left, config.Margins.Right, config.Margins.Bottom,
+		string(config.FontType), 6)
+}
+
 func draw(pdf *pdfdraw.PDF, data nfseData, config Config) {
 	drawWatermark(pdf, data, config)
 	x := config.Margins.Left
 	y := config.Margins.Top
 	w := 210 - config.Margins.Left - config.Margins.Right
-	h := 297 - config.Margins.Top - config.Margins.Bottom
+	h := 297 - config.Margins.Top - bottomMargin(config)
 	pdf.Rect(x, y, w, h, "")
 	drawHeader(pdf, x, y, w, data, config)
 	y += 39

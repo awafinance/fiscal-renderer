@@ -10,6 +10,7 @@ import (
 
 	"github.com/awafinance/fiscal-renderer/internal/barcode"
 	"github.com/awafinance/fiscal-renderer/internal/fiscalfmt"
+	"github.com/awafinance/fiscal-renderer/internal/footer"
 	"github.com/awafinance/fiscal-renderer/internal/images"
 	"github.com/awafinance/fiscal-renderer/internal/pdfdraw"
 	"github.com/awafinance/fiscal-renderer/internal/xmlutil"
@@ -38,10 +39,16 @@ func DefaultIssuer() Issuer {
 	}
 }
 
+// FooterStamp is the optional marketing/footer note drawn at the bottom of the
+// page. Its Text field supports markdown-ish formatting (**bold**, *italic*,
+// [label](url)). The zero value draws nothing.
+type FooterStamp = footer.Stamp
+
 type Config struct {
-	Issuer     Issuer
-	Image      string
-	ImageBytes []byte
+	Issuer      Issuer
+	Image       string
+	ImageBytes  []byte
+	FooterStamp FooterStamp
 }
 
 func DefaultConfig() Config {
@@ -65,6 +72,7 @@ func New(xml string, config *Config) (*Document, error) {
 		if normalized.Issuer == (Issuer{}) {
 			normalized.Issuer = DefaultIssuer()
 		}
+		normalized.FooterStamp = normalized.FooterStamp.Normalize(footer.Default())
 	}
 	return &Document{XML: xml, Config: normalized, root: root}, nil
 }
@@ -93,6 +101,9 @@ func (d *Document) Write(w io.Writer) error {
 	pdf.SetTitle("DACCe", false)
 	pdf.AddPageFormat("P", fpdf.SizeType{Wd: 210, Ht: 297})
 	d.draw(pdf, root)
+	// ponytail: DACCe uses a fixed 10mm layout margin (not configurable), so
+	// the footer matches it rather than reading a Margins field.
+	footer.Draw(pdf, d.Config.FooterStamp, "dacce-footer-logo", 10, 10, 10, "Helvetica", 6)
 	return pdf.Output(w)
 }
 

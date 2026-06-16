@@ -62,6 +62,26 @@ The same constructor/output pattern is available in the `danfe`, `dacce`,
 Use `doc.Output(path)` to write directly to a file, or `doc.Write(w)` to stream
 the PDF to any `io.Writer`, such as an HTTP response or in-memory buffer.
 
+## Footer note
+
+Every document family accepts an optional `FooterStamp` — a thin rule plus an
+optional logo and note drawn at the bottom of each page. It is entirely
+caller-driven; the library ships no default text. Leave it unset for no footer.
+
+The note supports markdown-ish inline formatting: `**bold**`, `*italic*`, and
+`[label](url)` clickable links. Use `\` to escape a literal `*`, `_`, `[`, or `\`.
+
+```go
+doc, _ := danfe.New(xml, &danfe.Config{
+	FooterStamp: danfe.FooterStamp{
+		Text: "Gerado por **Acme** — [acme.com](https://acme.com)",
+	},
+})
+```
+
+The same `FooterStamp` field is available on the `danfe`, `dacte`, `damdfe`,
+`dacce`, and `danfse` `Config` types.
+
 ## CLI
 
 Generate PDFs directly from the terminal:

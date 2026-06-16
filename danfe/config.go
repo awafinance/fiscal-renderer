@@ -1,5 +1,12 @@
 package danfe
 
+import "github.com/awafinance/fiscal-renderer/internal/footer"
+
+// FooterStamp is the optional marketing/footer note drawn at the bottom of each
+// page. Its Text field supports markdown-ish formatting (**bold**, *italic*,
+// [label](url)). The zero value draws nothing.
+type FooterStamp = footer.Stamp
+
 type TaxConfiguration string
 
 const (
@@ -57,15 +64,6 @@ type ProductDescriptionConfig struct {
 	DisplayAdditionalInfo bool
 }
 
-type FooterStamp struct {
-	Logo         string
-	LogoBytes    []byte
-	Text         string
-	Height       float64
-	LogoMaxWidth float64
-	Spacing      float64
-}
-
 type Config struct {
 	Logo                     string
 	LogoBytes                []byte
@@ -96,7 +94,7 @@ func DefaultProductDescriptionConfig() ProductDescriptionConfig {
 }
 
 func DefaultFooterStamp() FooterStamp {
-	return FooterStamp{Height: 5, LogoMaxWidth: 20, Spacing: 1}
+	return footer.Default()
 }
 
 func DefaultConfig() Config {
@@ -143,27 +141,6 @@ func normalizeConfig(config *Config) Config {
 	if normalized.ProductDescriptionConfig == (ProductDescriptionConfig{}) {
 		normalized.ProductDescriptionConfig = defaults.ProductDescriptionConfig
 	}
-	if footerStampIsZero(normalized.FooterStamp) {
-		normalized.FooterStamp = defaults.FooterStamp
-	} else {
-		if normalized.FooterStamp.Height == 0 {
-			normalized.FooterStamp.Height = defaults.FooterStamp.Height
-		}
-		if normalized.FooterStamp.LogoMaxWidth == 0 {
-			normalized.FooterStamp.LogoMaxWidth = defaults.FooterStamp.LogoMaxWidth
-		}
-		if normalized.FooterStamp.Spacing == 0 {
-			normalized.FooterStamp.Spacing = defaults.FooterStamp.Spacing
-		}
-	}
+	normalized.FooterStamp = normalized.FooterStamp.Normalize(defaults.FooterStamp)
 	return normalized
-}
-
-func footerStampIsZero(stamp FooterStamp) bool {
-	return stamp.Logo == "" &&
-		len(stamp.LogoBytes) == 0 &&
-		stamp.Text == "" &&
-		stamp.Height == 0 &&
-		stamp.LogoMaxWidth == 0 &&
-		stamp.Spacing == 0
 }

@@ -9,6 +9,7 @@ import (
 
 	"github.com/awafinance/fiscal-renderer/internal/barcode"
 	"github.com/awafinance/fiscal-renderer/internal/fiscalfmt"
+	"github.com/awafinance/fiscal-renderer/internal/footer"
 	"github.com/awafinance/fiscal-renderer/internal/images"
 	"github.com/awafinance/fiscal-renderer/internal/pdfdraw"
 	"github.com/awafinance/fiscal-renderer/internal/xmlutil"
@@ -51,13 +52,15 @@ func (d *Document) Write(w io.Writer) error {
 	pdf := pdfdraw.NewPDF("P", "mm", "A4", "")
 	pdf.SetCompression(false)
 	pdf.SetMargins(d.Config.Margins.Left, d.Config.Margins.Top, d.Config.Margins.Right)
-	pdf.SetAutoPageBreak(false, d.Config.Margins.Bottom)
+	pdf.SetAutoPageBreak(false, bottomMargin(d.Config))
 	pdf.SetTitle("DACTE", false)
 	pdf.AddPage()
 	draw(pdf, data, d.Config)
+	drawFooterStamp(pdf, d.Config)
 	if data.NeedsContinuationPage {
 		pdf.AddPage()
 		drawContinuation(pdf, data, d.Config)
+		drawFooterStamp(pdf, d.Config)
 	}
 	return pdf.Output(w)
 }
@@ -426,6 +429,16 @@ func parseModalSpecific(root, infModal *xmlutil.Node, code string) []field {
 	default:
 		return []field{{"RNTRC", xmlutil.Text(infModal, "RNTRC")}}
 	}
+}
+
+// drawFooterStamp renders the optional footer note in the bottom margin band.
+// ponytail: DACTE stacks blocks from the top rather than anchoring to the
+// bottom, so a maximally full document could crowd the footer; revisit with a
+// content-aware bottom bound if that shows up in practice.
+func drawFooterStamp(pdf *pdfdraw.PDF, config Config) {
+	footer.Draw(pdf, config.FooterStamp, "dacte-footer-logo",
+		config.Margins.Left, config.Margins.Right, config.Margins.Bottom,
+		string(config.FontType), 6)
 }
 
 func draw(pdf *pdfdraw.PDF, data cteData, config Config) {

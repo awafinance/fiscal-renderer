@@ -9,6 +9,7 @@ import (
 
 	"github.com/awafinance/fiscal-renderer/internal/barcode"
 	"github.com/awafinance/fiscal-renderer/internal/fiscalfmt"
+	"github.com/awafinance/fiscal-renderer/internal/footer"
 	"github.com/awafinance/fiscal-renderer/internal/images"
 	"github.com/awafinance/fiscal-renderer/internal/pdfdraw"
 	"github.com/awafinance/fiscal-renderer/internal/xmlutil"
@@ -1270,33 +1271,9 @@ func drawBarcode(pdf *pdfdraw.PDF, x, y, w, h float64, key string, pngBytes []by
 }
 
 func drawFooterStamp(pdf *pdfdraw.PDF, config Config) {
-	if config.FooterStamp.Logo == "" && len(config.FooterStamp.LogoBytes) == 0 && strings.TrimSpace(config.FooterStamp.Text) == "" {
-		return
-	}
-	pageW, pageH := pdf.GetPageSize()
-	y := pageH - config.Margins.Bottom - config.FooterStamp.Height
-	x := config.Margins.Left
-	w := pageW - config.Margins.Left - config.Margins.Right
-	pdf.SetDrawColor(180, 180, 180)
-	pdf.Line(x, y-config.FooterStamp.Spacing, x+w, y-config.FooterStamp.Spacing)
-	pdf.SetDrawColor(0, 0, 0)
-	cursor := x + w/2
-	if len(config.FooterStamp.LogoBytes) > 0 {
-		logoW := config.FooterStamp.LogoMaxWidth
-		pdf.ImageBytes("danfe-footer-logo", config.FooterStamp.LogoBytes, cursor-logoW/2, y, logoW, 0)
-		cursor += logoW/2 + 2
-	} else if config.FooterStamp.Logo != "" {
-		if imageType, _ := images.TypeFromFile(config.FooterStamp.Logo); imageType != "" {
-			logoW := config.FooterStamp.LogoMaxWidth
-			pdf.ImageOptions(config.FooterStamp.Logo, cursor-logoW/2, y, logoW, 0, false, fpdf.ImageOptions{ImageType: imageType}, 0, "")
-			cursor += logoW/2 + 2
-		}
-	}
-	if strings.TrimSpace(config.FooterStamp.Text) != "" {
-		pdf.SetFont(string(config.FontType), "", fontSize(config, 6))
-		pdf.SetXY(cursor, y+1)
-		pdf.CellFormat(w/2, config.FooterStamp.Height, config.FooterStamp.Text, "", 0, "L", false, 0, "")
-	}
+	footer.Draw(pdf, config.FooterStamp, "danfe-footer-logo",
+		config.Margins.Left, config.Margins.Right, config.Margins.Bottom,
+		string(config.FontType), fontSize(config, 6))
 }
 
 func productWidths(total float64, columns int) []float64 {
@@ -1406,11 +1383,7 @@ func receiptDocLabel(doc string) string {
 }
 
 func bottomMargin(config Config) float64 {
-	margin := config.Margins.Bottom
-	if config.FooterStamp.Logo != "" || len(config.FooterStamp.LogoBytes) > 0 || strings.TrimSpace(config.FooterStamp.Text) != "" {
-		margin += config.FooterStamp.Height + config.FooterStamp.Spacing
-	}
-	return margin
+	return config.Margins.Bottom + config.FooterStamp.Reserve()
 }
 
 func danfePageLabel(pdf *pdfdraw.PDF, data nfeData) string {
