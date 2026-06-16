@@ -9,6 +9,7 @@ import (
 
 	"github.com/awafinance/fiscal-renderer/internal/barcode"
 	"github.com/awafinance/fiscal-renderer/internal/fiscalfmt"
+	"github.com/awafinance/fiscal-renderer/internal/footer"
 	"github.com/awafinance/fiscal-renderer/internal/images"
 	"github.com/awafinance/fiscal-renderer/internal/pdfdraw"
 	"github.com/awafinance/fiscal-renderer/internal/xmlutil"
@@ -51,10 +52,11 @@ func (d *Document) Write(w io.Writer) error {
 	pdf := pdfdraw.NewPDF("P", "mm", "A4", "")
 	pdf.SetCompression(false)
 	pdf.SetMargins(d.Config.Margins.Left, d.Config.Margins.Top, d.Config.Margins.Right)
-	pdf.SetAutoPageBreak(false, d.Config.Margins.Bottom)
+	pdf.SetAutoPageBreak(false, bottomMargin(d.Config))
 	pdf.SetTitle("DAMDFE", false)
 	pdf.AddPage()
 	draw(pdf, data, d.Config)
+	drawFooterStamp(pdf, d.Config)
 	return pdf.Output(w)
 }
 
@@ -422,6 +424,12 @@ func parseCIOT(infModal *xmlutil.Node) []field {
 	return out
 }
 
+func drawFooterStamp(pdf *pdfdraw.PDF, config Config) {
+	footer.Draw(pdf, config.FooterStamp, "damdfe-footer-logo",
+		config.Margins.Left, config.Margins.Right, config.Margins.Bottom,
+		string(config.FontType), 6)
+}
+
 func draw(pdf *pdfdraw.PDF, data mdfeData, config Config) {
 	drawWatermarks(pdf, data, config)
 	x := config.Margins.Left
@@ -433,7 +441,7 @@ func draw(pdf *pdfdraw.PDF, data mdfeData, config Config) {
 	drawVoucher(pdf, x, y+87.5, bodyW, data, config)
 	drawLinkedDocuments(pdf, x, y+118, bodyW, data.Documents, config)
 	drawInsurance(pdf, x, y+130, bodyW, data, config)
-	drawSupplementaryInfo(pdf, x, y+186, bodyW, 297-config.Margins.Bottom-(y+186), data, config)
+	drawSupplementaryInfo(pdf, x, y+186, bodyW, 297-bottomMargin(config)-(y+186), data, config)
 }
 
 func drawWatermarks(pdf *pdfdraw.PDF, data mdfeData, config Config) {

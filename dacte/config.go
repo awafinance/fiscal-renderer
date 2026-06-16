@@ -1,5 +1,12 @@
 package dacte
 
+import "github.com/awafinance/fiscal-renderer/internal/footer"
+
+// FooterStamp is the optional marketing/footer note drawn at the bottom of each
+// page. Its Text field supports markdown-ish formatting (**bold**, *italic*,
+// [label](url)). The zero value draws nothing.
+type FooterStamp = footer.Stamp
+
 type FontType string
 
 const (
@@ -47,6 +54,11 @@ type Config struct {
 	FontType           FontType
 	WatermarkCancelled bool
 	DisplayIBSCBS      bool
+	FooterStamp        FooterStamp
+}
+
+func bottomMargin(config Config) float64 {
+	return config.Margins.Bottom + config.FooterStamp.Reserve()
 }
 
 func DefaultMargins() Margins {
@@ -84,5 +96,6 @@ func normalizeConfig(config *Config) Config {
 	if normalized.FontType == "" {
 		normalized.FontType = defaults.FontType
 	}
+	normalized.FooterStamp = normalized.FooterStamp.Normalize(footer.Default())
 	return normalized
 }
