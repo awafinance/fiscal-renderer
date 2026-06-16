@@ -15,7 +15,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const Version = "0.7.9"
+const Version = "0.8.0"
 
 type configFile struct {
 	Issuer       issuerConfig `yaml:"ISSUER"`
