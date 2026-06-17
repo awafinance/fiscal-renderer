@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/awafinance/fiscal-renderer/internal/golden"
+	"github.com/awafinance/fiscal-renderer/internal/pdfdraw"
 )
 
 func TestDefaultConfigMatchesPythonDefaults(t *testing.T) {
@@ -279,11 +280,17 @@ func TestServiceCodeStripsDuplicatedDescriptionPrefixLikeUpstream(t *testing.T) 
 	if got := serviceColumnWidth(DefaultMargins()); got != 50 {
 		t.Fatalf("default service column width = %f", got)
 	}
-	if got := serviceNationalTaxCode("010501", "0105 | 1.05 - Serviço de Publicidade e Propaganda", goldenMargins, FontTypeTimes); got != "01.05.01 - Serviço de Publicidade e..." {
+	if got := serviceNationalTaxCode("010501", "Serviços de Publicidade", goldenMargins, FontTypeTimes); got != "01.05.01 - Serviços de Publicidade" {
 		t.Fatalf("service national tax code = %q", got)
 	}
-	if got := serviceNationalTaxCode("1401", "Serviço Prestado conforme CNAE 4929-9/02 – Preparação de documentos e serviços especializados de apoio administrativo não especificados anteriormente, referente ao mês de 02/2026.", goldenMargins, FontTypeTimes); got != "1401 - Serviço Prestado conforme CNAE..." {
+	if got := serviceNationalTaxCode("1401", "Serviços de transporte", goldenMargins, FontTypeTimes); got != "1401 - Serviços de transporte" {
 		t.Fatalf("homologation service national tax code = %q", got)
+	}
+	pdf := pdfdraw.NewPDF("P", "mm", "A4", "")
+	pdf.SetFont(string(FontTypeTimes), "", 8)
+	rendered := multilineFieldPDF(pdf, serviceNationalTaxCode("110201", "Vigilância, segurança ou monitoramento de bens, pessoas e semoventes.", DefaultMargins(), FontTypeTimes), 49, 3)
+	if rendered != "11.02.01 - Vigilância, segurança ou\nmonitoramento de bens, pessoas e\nsemoventes." {
+		t.Fatalf("rendered service national tax code = %q", rendered)
 	}
 	if !golden.PDFTextAvailable() {
 		t.Skip("pdftotext not available")
@@ -292,8 +299,14 @@ func TestServiceCodeStripsDuplicatedDescriptionPrefixLikeUpstream(t *testing.T) 
 	if strings.Contains(text, "01.05.01 - 0105 | 1.05") {
 		t.Fatalf("service code duplicated municipal prefix in %q", text)
 	}
-	if !strings.Contains(text, "01.05.01 - Serviço de Publicidade e...") {
-		t.Fatalf("service code missing upstream stripped description in %q", text)
+	if strings.Contains(text, "01.05.01 - Serviço de Publicidade e...") {
+		t.Fatalf("service code was truncated before multiline rendering in %q", text)
+	}
+	if strings.Contains(text, "01.05.01 - Serviço de Publicidade e Propaganda") {
+		t.Fatalf("service code used service description instead of national taxation description in %q", text)
+	}
+	if !strings.Contains(text, "01.05.01 - Serviços de Publicidade") {
+		t.Fatalf("service code missing national taxation description in %q", text)
 	}
 }
 

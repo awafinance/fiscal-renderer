@@ -210,7 +210,7 @@ func parseData(root *xmlutil.Node, config Config) nfseData {
 		DPSEmissionTime:  dpsTime,
 		Issuer:           parseIssuer(infNFSe, emit, issuerAddress, regTrib),
 		Taker:            parseTaker(takerNode),
-		ServiceCode:      serviceNationalTaxCode(xmlutil.Text(service, "cTribNac"), xmlutil.Text(service, "xDescServ"), config.Margins, config.FontType),
+		ServiceCode:      serviceNationalTaxCode(xmlutil.Text(service, "cTribNac"), firstNonEmpty(xmlutil.Text(infNFSe, "xTribNac"), xmlutil.Text(service, "xDescServ")), config.Margins, config.FontType),
 		ServiceMunicipal: optional(xmlutil.Text(service, "cTribMun")),
 		ServicePlace:     strings.TrimSpace(xmlutil.Text(infNFSe, "xLocPrestacao") + " - " + xmlutil.Text(emit, "UF")),
 		ServiceCountry:   optional(xmlutil.Text(service, "cPaisPrestacao")),
@@ -253,7 +253,8 @@ func serviceNationalTaxCode(nationalTax, description string, margins Margins, fo
 	if before, after, ok := strings.Cut(formattedDescription, " - "); ok && before != "" {
 		formattedDescription = strings.TrimSpace(after)
 	}
-	return longField(strings.TrimSpace(formattedTax+" - "+formattedDescription), serviceColumnWidth(margins), 8, string(fontType))
+	formattedDescription = strings.Join(strings.Fields(formattedDescription), " ")
+	return strings.TrimSpace(formattedTax + " - " + formattedDescription)
 }
 
 func serviceColumnWidth(margins Margins) float64 {
@@ -472,8 +473,7 @@ func draw(pdf *pdfdraw.PDF, data nfseData, config Config) {
 	y += 30
 	drawIntermediary(pdf, x+2, y, w-4, config)
 	y -= 2
-	drawServiceProvided(pdf, x+2, y, w-4, data, config)
-	y += 25
+	y += drawServiceProvided(pdf, x+2, y, w-4, data, config)
 	drawTaxes(pdf, x, y, w, data, config)
 	y += 53
 	drawAmount(pdf, x, y, w, data, config)
@@ -595,16 +595,30 @@ func drawIntermediary(pdf *pdfdraw.PDF, x, y, w float64, config Config) {
 	pdf.Line(x, y+1, x+w, y+1)
 }
 
-func drawServiceProvided(pdf *pdfdraw.PDF, x, y, w float64, data nfseData, config Config) {
+func drawServiceProvided(pdf *pdfdraw.PDF, x, y, w float64, data nfseData, config Config) float64 {
 	colW := w / 4
 	sectionY := y + 5
+	pdf.SetFont(string(config.FontType), "", 8)
+	serviceCode := multilineFieldPDF(pdf, data.ServiceCode, colW, 3)
+	serviceDesc := multilineFieldPDF(pdf, data.ServiceDesc, w-1, 4)
+	topBlockHeight := 3 + float64(lineCount(serviceCode))*2.5
+	descY := sectionY + 14
+	if calculatedY := sectionY + 4 + topBlockHeight + 2; calculatedY > descY {
+		descY = calculatedY
+	}
+	height := 25.0
+	if calculatedHeight := descY + 3 + float64(lineCount(serviceDesc))*2.5 + 0.5 - y; calculatedHeight > height {
+		height = calculatedHeight
+	}
+
 	drawDANFSETitle(pdf, x+1, sectionY, "SERVIÇO PRESTADO", 9, config)
-	drawDANFSEMultilineField(pdf, x+1, sectionY+4, colW, "Código de Tributação Nacional", data.ServiceCode, colW, config)
+	drawDANFSEMultilineFieldMax(pdf, x+1, sectionY+4, colW, "Código de Tributação Nacional", serviceCode, 0, 0, config)
 	drawDANFSEField(pdf, x+colW, sectionY+4, colW, "Código de Tributação Municipal", data.ServiceMunicipal, 7, 8, 0, config)
 	drawDANFSEField(pdf, x+(colW*2), sectionY+4, colW, "Local da Prestação", data.ServicePlace, 7, 8, 0, config)
 	drawDANFSEField(pdf, x+(colW*3), sectionY+4, colW, "País da Prestação", data.ServiceCountry, 7, 8, 0, config)
-	drawDANFSEField(pdf, x+1, sectionY+14, colW, "Descrição do Serviço", data.ServiceDesc, 7, 8, w-1, config)
-	pdf.Line(x, y+25, x+w, y+25)
+	drawDANFSEMultilineFieldMax(pdf, x+1, descY, w-1, "Descrição do Serviço", serviceDesc, 0, 0, config)
+	pdf.Line(x, y+height, x+w, y+height)
+	return height
 }
 
 func drawTaxes(pdf *pdfdraw.PDF, x, y, w float64, data nfseData, config Config) {
@@ -728,13 +742,17 @@ func drawDANFSEField(pdf *pdfdraw.PDF, x, y, w float64, label, value string, lab
 }
 
 func drawDANFSEMultilineField(pdf *pdfdraw.PDF, x, y, w float64, label, value string, limit float64, config Config) {
+	drawDANFSEMultilineFieldMax(pdf, x, y, w, label, value, limit, 2, config)
+}
+
+func drawDANFSEMultilineFieldMax(pdf *pdfdraw.PDF, x, y, w float64, label, value string, limit float64, maxLines int, config Config) {
 	pdf.SetFont(string(config.FontType), "B", 7)
 	pdf.SetXY(x, y)
 	pdf.CellFormat(w, 3, label, "", 0, "L", false, 0, "")
 	pdf.SetFont(string(config.FontType), "", 8)
 	pdf.SetXY(x, y+3)
 	if limit > 0 {
-		value = longFieldPDF(pdf, value, limit)
+		value = multilineFieldPDF(pdf, value, limit, maxLines)
 	}
 	pdf.MultiCell(w, 2.5, value, "", "L", false)
 }
@@ -745,7 +763,7 @@ func drawComplementaryInfo(pdf *pdfdraw.PDF, x, y, w float64, value string, conf
 	pdf.CellFormat(w-2, 3, "INFORMAÇÕES COMPLEMENTARES", "", 1, "L", false, 0, "")
 	pdf.SetFont(string(config.FontType), "", 7)
 	pdf.SetXY(x+1, y+5)
-	pdf.CellFormat(w-2, 3, longFieldPDF(pdf, optional(value), w-2), "", 1, "L", false, 0, "")
+	pdf.MultiCell(w-2, 3, multilineFieldPDF(pdf, optional(value), w-2, 3), "", "L", false)
 }
 
 func longFieldPDF(pdf *pdfdraw.PDF, text string, limitMM float64) string {
@@ -770,6 +788,85 @@ func longFieldPDF(pdf *pdfdraw.PDF, text string, limitMM float64) string {
 		return ""
 	}
 	return string(runes) + "..."
+}
+
+func multilineFieldPDF(pdf *pdfdraw.PDF, text string, limitMM float64, maxLines int) string {
+	text = strings.Join(strings.Fields(text), " ")
+	if text == "" || limitMM <= 0 || maxLines <= 0 {
+		return ""
+	}
+	lineLimit := limitMM - 2*pdf.GetCellMargin()
+	if lineLimit <= 0 {
+		lineLimit = limitMM
+	}
+	if maxLines == 1 {
+		return longFieldPDF(pdf, text, lineLimit)
+	}
+	lines := wrapFieldLinesPDF(pdf, text, lineLimit)
+	if len(lines) <= maxLines {
+		return strings.Join(lines, "\n")
+	}
+	kept := append([]string(nil), lines[:maxLines-1]...)
+	remaining := strings.Join(lines[maxLines-1:], " ")
+	kept = append(kept, longFieldPDF(pdf, remaining, lineLimit))
+	return strings.Join(kept, "\n")
+}
+
+func lineCount(text string) int {
+	if text == "" {
+		return 0
+	}
+	return strings.Count(text, "\n") + 1
+}
+
+func wrapFieldLinesPDF(pdf *pdfdraw.PDF, text string, limitMM float64) []string {
+	var lines []string
+	var current string
+	for _, word := range strings.Fields(text) {
+		if current == "" {
+			current = word
+			continue
+		}
+		candidate := current + " " + word
+		if pdf.GetStringWidth(pdf.Encode(candidate)) <= limitMM {
+			current = candidate
+			continue
+		}
+		lines = append(lines, current)
+		current = word
+	}
+	if current != "" {
+		lines = append(lines, current)
+	}
+	if len(lines) == 0 {
+		return nil
+	}
+	var wrapped []string
+	for _, line := range lines {
+		if pdf.GetStringWidth(pdf.Encode(line)) <= limitMM {
+			wrapped = append(wrapped, line)
+			continue
+		}
+		wrapped = append(wrapped, splitLongFieldLinePDF(pdf, line, limitMM)...)
+	}
+	return wrapped
+}
+
+func splitLongFieldLinePDF(pdf *pdfdraw.PDF, text string, limitMM float64) []string {
+	var lines []string
+	var current []rune
+	for _, r := range []rune(text) {
+		candidate := string(append(current, r))
+		if len(current) > 0 && pdf.GetStringWidth(pdf.Encode(candidate)) > limitMM {
+			lines = append(lines, string(current))
+			current = current[:0]
+		}
+		current = append(current, r)
+	}
+	if len(current) > 0 {
+		lines = append(lines, string(current))
+	}
+	return lines
 }
 
 func optional(value string) string {
