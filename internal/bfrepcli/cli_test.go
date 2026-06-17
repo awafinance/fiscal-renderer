@@ -16,7 +16,7 @@ func TestVersion(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit code = %d stderr=%s", code, stderr.String())
 	}
-	if got := strings.TrimSpace(stdout.String()); got != "bfrep version 0.8.0" {
+	if got := strings.TrimSpace(stdout.String()); got != "bfrep version 0.8.1" {
 		t.Fatalf("version output = %q", got)
 	}
 }
@@ -27,7 +27,7 @@ func TestShortVersion(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit code = %d stderr=%s", code, stderr.String())
 	}
-	if got := strings.TrimSpace(stdout.String()); got != "bfrep version 0.8.0" {
+	if got := strings.TrimSpace(stdout.String()); got != "bfrep version 0.8.1" {
 		t.Fatalf("version output = %q", got)
 	}
 }
